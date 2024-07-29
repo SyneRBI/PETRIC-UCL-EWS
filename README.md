@@ -6,11 +6,35 @@
 [![leaderboard](https://img.shields.io/badge/rankings-leaderboard-orange?logo=tensorflow&logoColor=white)](https://petric.tomography.stfc.ac.uk/leaderboard)
 [![discord](https://img.shields.io/badge/chat-discord-blue?logo=discord&logoColor=white)](https://discord.gg/Ayd72Aa4ry)
 
-## Participating
 
-The organisers will provide GPU-enabled cloud runners which have access to larger private datasets for evaluation. To gain access, you must [register](https://github.com/SyneRBI/PETRIC/issues/new/choose). The organisers will then create a private team submission repository for you.
+## Implemented Approaches
 
-## Layout
+### 1) Educated Warm Start
+
+To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation should reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. As the feed-forward pass of a neural network is typically quite fast, the calculation of the initial image should only come with a small increase of computation time. Hopefully, this increase of computation is less than the saved time due to less iterations. 
+
+
+### 2) Adam (adaptive moment estimation)
+
+Adam is a popular first order stochastic optimisation algorithm heavily used in deep learning. Maybe Adam can also speed up convergence in PET? Here, we just implement the [Adam algorithm](https://arxiv.org/abs/1412.6980).
+
+
+### Setup on Hydra
+
+I setup the enviroment on hydra as follows:
+
+```
+docker run --rm -it -v /home/alexdenker/pet/PETRIC/data:/mnt/share/petric:ro -v .:/workdir -w /workdir --gpus all --user root synerbi/sirf:edge-gpu /bin/bash 
+
+pip install git+https://github.com/TomographicImaging/Hackathon-000-Stochastic-QualityMetrics
+
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+```
+
+
+## Challenge information
+
+### Layout
 
 The organisers will import your submitted algorithm from `main.py` and then run & evaluate it.
 Please create this file! See the example `main_*.py` files for inspiration.
@@ -26,7 +50,7 @@ Additional dependencies may be specified via `apt.txt`, `environment.yml`, and/o
 You can also find some example notebooks here which should help you with your development:
 - https://github.com/SyneRBI/SIRF-Contribs/blob/master/src/notebooks/BSREM_illustration.ipynb
 
-## Organiser setup
+### Organiser setup
 
 The organisers will execute (after downloading https://petric.tomography.stfc.ac.uk/data/ to `/path/to/data`):
 
@@ -59,3 +83,8 @@ python petric.py
 - `metrics` are calculated by `class QualityMetrics` within `petric.py`
 
 Any modifications to `petric.py` are ignored.
+
+
+## Team
+
+Imraj Singh, Alexander Denker, Zeljko Kereta (University College London)
