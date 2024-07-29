@@ -13,6 +13,7 @@ from cil.optimisation.algorithms import Algorithm
 import time 
 import numpy as np 
 
+import torch 
 
 class AdamSkeleton(Algorithm):
     ''' Main implementation of a modified BSREM algorithm
@@ -84,7 +85,7 @@ class AdamSkeleton(Algorithm):
         g = self.subset_gradient(self.x, self.subset)
         #g = (self.x + self.eps) * g / self.average_sensitivity
 
-        self.m = self.beta1 * self.m + (1 - self.beta1) * g
+        self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
         g.power(2, out=g)
         self.v = self.beta2 * self.v + (1 - self.beta2) * g
         self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.iteration+1))
