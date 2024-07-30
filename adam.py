@@ -60,16 +60,9 @@ class AdamSkeleton(Algorithm):
         self.eps_adam = 1e-8 
 
         self.m = initial.get_uniform_copy(0) 
-        # self.m.fill(np.zeros_like(initial.as_array()))
-
-        self.m_hat = initial.copy() 
-        self.m_hat.fill(np.zeros_like(initial.as_array()))
-
-        self.v = initial.copy() 
-        self.v.fill(np.zeros_like(initial.as_array()))
-
-        self.v_hat = initial.copy() 
-        self.v_hat.fill(np.zeros_like(initial.as_array()))
+        self.m_hat = initial.get_uniform_copy(0) 
+        self.v = initial.get_uniform_copy(0) 
+        self.v_hat = initial.get_uniform_copy(0) 
 
 
     def subset_sensitivity(self, subset_num):
@@ -80,6 +73,9 @@ class AdamSkeleton(Algorithm):
 
     def epoch(self):
         return self.iteration // self.num_subsets
+
+    def step_size(self):
+        return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
         g = self.subset_gradient(self.x, self.subset)
@@ -92,7 +88,7 @@ class AdamSkeleton(Algorithm):
         self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.iteration+1))
         self.v_hat.sqrt(out=self.v_hat)
         
-        self.x_update = self.alpha * self.m_hat / (self.v_hat + self.eps_adam)
+        self.x_update = self.step_size() * self.m_hat / (self.v_hat + self.eps_adam)
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 

@@ -1,5 +1,7 @@
 data/
 output/
+output_ews/
+
 tmp*/
 err*.txt
 info.txt

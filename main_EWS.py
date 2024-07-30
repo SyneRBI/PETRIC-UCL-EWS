@@ -13,26 +13,15 @@ from petric import Dataset
 from sirf.contrib.partitioner import partitioner
 
 from ews import EWS
-
 assert issubclass(EWS, Algorithm)
-
-
-class MaxIteration(callbacks.Callback):
-    """
-    The organisers try to `Submission(data).run(inf)` i.e. for infinite iterations (until timeout).
-    This callback forces stopping after `max_iteration` instead.
-    """
-    def __init__(self, max_iteration: int, verbose: int = 1):
-        super().__init__(verbose)
-        self.max_iteration = max_iteration
-
-    def __call__(self, algorithm: Algorithm):
-        if algorithm.iteration >= self.max_iteration:
-            raise StopIteration
 
 class Submission(EWS):
     # note that `issubclass(BSREM1, Algorithm) == True`
-    def __init__(self, data: Dataset, num_subsets: int = 7, update_objective_interval: int = 10):
+    def __init__(self, 
+                 data: Dataset, 
+                 num_subsets: int = 7, 
+                 update_objective_interval: int = 10,
+                 **kwargs):
         """
         Initialisation function, setting up data & (hyper)parameters.
         NB: in practice, `num_subsets` should likely be determined from the data.
@@ -50,5 +39,4 @@ class Submission(EWS):
         super().__init__(data_sub, obj_funs, initial=data.OSEM_image, initial_step_size=.3, relaxation_eta=.01,
                          update_objective_interval=update_objective_interval)
 
-
-submission_callbacks = [MaxIteration(600)]
+submission_callbacks = [] 

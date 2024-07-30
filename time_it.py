@@ -1,33 +1,13 @@
 
-import numpy as np 
-from dataclasses import dataclass
 
 from pathlib import Path
-import matplotlib.pyplot as plt 
-from dataclasses import dataclass
 from time import time
 
-import numpy as np
 import time
 
 import sirf.STIR as STIR
 from sirf.contrib.partitioner import partitioner
 
-
-
-
-@dataclass
-class Dataset:
-    acquired_data: STIR.AcquisitionData
-    additive_term: STIR.AcquisitionData
-    mult_factors: STIR.AcquisitionData
-    OSEM_image: STIR.ImageData
-    prior: STIR.RelativeDifferencePrior
-    kappa: STIR.ImageData
-    reference_image: STIR.ImageData | None
-    whole_object_mask: STIR.ImageData | None
-    background_mask: STIR.ImageData | None
-    voi_masks: dict[str, STIR.ImageData]
 
 datasets = ["NeuroLF_Hoffman_Dataset", "Siemens_mMR_NEMA_IQ", "Siemens_Vision600_thorax"]
 
@@ -40,7 +20,7 @@ STIR.set_verbosity(sirf_verbosity)                # set to higher value to diagn
 STIR.AcquisitionData.set_storage_scheme('memory') # needed for get_subsets()
 _ = STIR.MessageRedirector(str(outdir / 'info.txt'), str(outdir / 'warnings.txt'), str(outdir / 'errors.txt'))
 
-num_tries = 10
+num_tries = 100
 for dataset in datasets:
     print("Timing information for: ", dataset)
     srcdir = Path("/mnt/share/petric" + "/" + dataset)
