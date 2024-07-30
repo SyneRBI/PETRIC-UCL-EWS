@@ -59,8 +59,8 @@ class AdamSkeleton(Algorithm):
         self.beta2 = 0.999
         self.eps_adam = 1e-8 
 
-        self.m = initial.copy() 
-        self.m.fill(np.zeros_like(initial.as_array()))
+        self.m = initial.get_uniform_copy(0) 
+        # self.m.fill(np.zeros_like(initial.as_array()))
 
         self.m_hat = initial.copy() 
         self.m_hat.fill(np.zeros_like(initial.as_array()))
