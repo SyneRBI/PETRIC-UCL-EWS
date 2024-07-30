@@ -88,7 +88,7 @@ if SRCDIR.is_dir():
                          (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman"),
                          (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax")]
 
-dataset = "hoffman"   
+dataset = "nema"   
 
 if dataset == "nema":
     data = get_data(srcdir=SRCDIR / "Siemens_mMR_NEMA_IQ", outdir=OUTDIR / "mMR_NEMA")
@@ -137,7 +137,9 @@ print("Data partitioned")
 Path("unrolled_imgs").mkdir(exist_ok=True)
 # make subdir of dataset
 Path(f"unrolled_imgs/{dataset}").mkdir(exist_ok=True)
-dir_path = Path(f"unrolled_imgs/{dataset}")
+# inference subdirectory
+Path(f"unrolled_imgs/{dataset}/inference").mkdir(exist_ok=True)
+dir_path = Path(f"unrolled_imgs/{dataset}/inference")
 
 # %%
 import torch
@@ -168,8 +170,6 @@ class _SIRF_objective_wrapper(torch.autograd.Function):
         # synchronize memory
         return grad_input, None, None
     
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = 'cpu'
 class NetworkPreconditioner(torch.nn.Module):
     def __init__(self, n_layers = 1, hidden_channels = 32, kernel_size = 5):
@@ -229,10 +229,10 @@ class DeepUnrolledPreconditioner(torch.nn.Module):
 
 
 unrolled_iterations = num_subsets
-precond = DeepUnrolledPreconditioner(unrolled_iterations=unrolled_iterations, n_layers=4, hidden_channels=32, kernel_size=3, single_network=True)
+precond = DeepUnrolledPreconditioner(unrolled_iterations=unrolled_iterations, n_layers=1, hidden_channels=16, kernel_size=5, single_network=False)
+precond.load_state_dict(torch.load(f"unrolled_imgs/hoffman/precond.pth", weights_only=True))
 precond.to(device)
-
-optimizer = torch.optim.Adam(precond.parameters(), lr=1e-4)
+precond.eval()
 
 data.prior.set_penalisation_factor(data.prior.get_penalisation_factor() / len(obj_funs))
 data.prior.set_up(data.OSEM_image)
@@ -241,34 +241,12 @@ for f in obj_funs: # add prior evenly to every objective function
 
 osem_input_torch = torch.tensor(data.OSEM_image.as_array(), device=device).unsqueeze(1)
 x_sirf = data.OSEM_image.clone()
-losses = []
-min_loss = 1e10
-for i in range(unrolled_iterations*100):
-    optimizer.zero_grad()
-    shuffle(obj_funs)
-    compute_upto = unrolled_iterations#(i//100)+1
-    xs = precond(osem_input_torch, obj_funs, compute_upto = compute_upto, sirf_img = x_sirf, plot=True, epoch=i)
-    loss = []
-    for loss_i in range(compute_upto):
-        loss.append(_SIRF_objective_wrapper.apply(xs[loss_i], x_sirf, obj_funs[loss_i]))#full_obj_fun[0]))
-    loss = sum(loss)/len(loss)
-    loss.backward()
-    optimizer.step()
-    full_loss = _SIRF_objective_wrapper.apply(xs[-1], x_sirf, full_obj_fun[0]).detach().item()
-    if full_loss < min_loss:
-        min_loss = full_loss
-        # save network state
-        torch.save(precond.state_dict(), f"{dir_path}/precond.pth")
-    print(f"Iteration: {i}, Loss: {full_loss}")
-    losses.append(full_loss)
-    if i % 100 == 0:
-        plt.imshow(xs[0].detach().cpu().numpy()[72,0, :, :])
-        plt.colorbar()
-        plt.title(f"Iteration {i}, Loss: {full_loss}")
-        plt.savefig(f"{dir_path}/final_image_{i}.png")
-        plt.close()
-    plt.plot(losses)
-    plt.savefig(f"{dir_path}/losses.png")
-    plt.close()
+
+
+shuffle(obj_funs)
+compute_upto = unrolled_iterations
+xs = precond(osem_input_torch, obj_funs, compute_upto = compute_upto, sirf_img = x_sirf, plot=True, epoch=0)
+full_loss = _SIRF_objective_wrapper.apply(xs[-1], x_sirf, full_obj_fun[0]).detach().item()
+print("Full loss: ", full_loss)
 
 
