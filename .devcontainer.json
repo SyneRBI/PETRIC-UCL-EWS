@@ -1,0 +1,18 @@
+/// format: https://aka.ms/devcontainer.json
+{
+"name": "UCL-EWS", // taken from sirf-exercises predominately
+//"initializeCommand": "docker system prune --all --force",
+"image": "synerbi/sirf:edge-gpu",
+/// use image's entrypoint & user
+"overrideCommand": false,
+//"postStartCommand": "nohup bash -c 'gadgetron >& /tmp/gadgetron.log &'" // already done in image
+"remoteUser": "jovyan",
+"portsAttributes": {"8888": {"label": "Jupyter", "onAutoForward": "ignore"}},
+//"postCreateCommand": "pip install git+https://github.com/TomographicImaging/Hackathon-000-Stochastic-QualityMetrics",
+// "features": {}, // https://containers.dev/features
+"runArgs": ["--gpus","all"],
+"customizations": {"vscode": {"extensions": [
+	"ms-python.python",
+	"ms-toolsai.jupyter",
+	"ms-python.vscode-pylance"]}}
+}
