@@ -65,9 +65,8 @@ class BSREMSkeleton(Algorithm):
         self.precond = initial.get_uniform_copy(0)
         self.rdp_diag_hess_obj = RDPDiagHessTorch(self.dataset.OSEM_image.copy(), self.dataset.prior)
         self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
-        self.precond = self.dataset.kappa + self.rdp_diag_hess + 1e-9
+        self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
         self.x_update = initial.get_uniform_copy(0)
-        self.eps = initial.max()/1e3
         self.subset = 0
         self.update_filter = update_filter
         self.subset_order = herman_meyer_order(self.num_subsets)
@@ -108,11 +107,11 @@ class cursed_BSREM(BSREMSkeleton):
         self.g /= num_to_accumulate
         if self.iteration in self.update_rdp_diag_hess_iter:
             self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
-            self.precond = self.dataset.kappa + self.rdp_diag_hess + 1e-9
+            self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
         self.x_update = self.g / self.precond
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
-        self.x += self.x_update
+        self.x += 0.9*self.x_update
         self.x.maximum(0, out=self.x)
 
     def update_objective(self):
