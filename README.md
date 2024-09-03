@@ -24,7 +24,7 @@ Adam is a popular first order stochastic optimisation algorithm heavily used in 
 I setup the enviroment on hydra as follows:
 
 ```
-docker run --rm -it -v /home/alexdenker/pet/PETRIC/data:/mnt/share/petric:ro -v .:/workdir -w /workdir --gpus all --user root synerbi/sirf:edge-gpu /bin/bash 
+docker run --rm -it -v /home/alexdenker/pet/data:/mnt/share/petric:ro -v .:/workdir -w /workdir --gpus all --user root synerbi/sirf:edge-gpu /bin/bash 
 
 pip install git+https://github.com/TomographicImaging/Hackathon-000-Stochastic-QualityMetrics
 

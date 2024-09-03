@@ -19,52 +19,97 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from time import time
+import time
 from traceback import print_exc
 from datetime import datetime
 import yaml 
 
 import numpy as np
 from skimage.metrics import mean_squared_error as mse
+import matplotlib.pyplot as plt 
 
 import sirf.STIR as STIR
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks as cil_callbacks
 #from img_quality_cil_stir import ImageQualityCallback
 
-import torch 
-torch.cuda.set_per_process_memory_fraction(0.8)
+#import torch 
+#torch.cuda.set_per_process_memory_fraction(0.8)
 
-method = "saga"
+method = "bsrem_bb"
 
 if method == "ews":
     from main_EWS import Submission, submission_callbacks
-    submission_args = {}
+    submission_args = {
+        "method": "ews",
+        "model_name" : None,
+        "weights_path": None, 
+        "mode": "staggered",
+        "initial_step_size": 0.3, 
+        "relaxation_eta": 0.01,
+        "num_subsets": 10, 
+        }
 elif method == "adam":
     from main_ADAM import Submission, submission_callbacks
-    submission_args = {
-        "initial_step_size": 5e-3, 
-        "relaxation_eta": 0.01,
-        "num_subsets": 7, 
+    submission_args = { 
+        "method": "adam",
+        "initial_step_size": 2.0, 
+        "relaxation_eta": 0.02,
+        "num_subsets": 8, 
         "mode": "staggered"
     }
 elif method == "bsrem":
     from main_BSREM import Submission, submission_callbacks
 
     submission_args = {
+        "method": "bsrem",
         "initial_step_size": 0.3, 
         "relaxation_eta": 0.01,
-        "num_subsets": 14, 
-        "mode": "staggered"
+        "num_subsets": 8, 
+        "mode": "staggered",
+        "preconditioner" : None 
+    }
+elif method == "bsrem_bb":
+    from main_BSREMbb import Submission, submission_callbacks
+
+    submission_args = {
+        "method": "bsrem_bb",
+        "initial_step_size": 0.3, 
+        "num_subsets": 16, 
+        "mode": "staggered",
+        "beta": 0.6,
+        "bb_init_mode" : "mean" # "short" "mean" "long"
     }
 elif method == "saga":
     from main_SAGA import Submission, submission_callbacks
 
     submission_args = {
+        "method": "saga",
         "initial_step_size": 0.3, 
         "relaxation_eta": 0.01,
         "num_subsets": 14, 
         "mode": "staggered"
+    }
+elif method == "pnp":
+    from main_PnP import Submission, submission_callbacks
+
+    submission_args = {
+        "method": "pnp",
+        "initial_step_size": 0.3, 
+        "relaxation_eta": 0.01,
+        "num_subsets": 14, 
+        "mode": "staggered"
+    }
+elif method == "cursed_bsrem":
+    from main_cursed_BSREM import Submission, submission_callbacks
+    submission_args = {
+        "method": "cursed_bsrem",
+        "num_subsets": 16,
+        "mode": "staggered",
+        "update_objective_interval": 10,
+        "accumulate_gradient_iter": [50, 75],
+        "accumulate_gradient_num": [1, 8],
+        "update_rdp_diag_hess_iter": [i+4 for i in range(100)][:2]
     }
 else:
     raise NotImplementedError
@@ -114,24 +159,40 @@ class QualityMetrics(Callback):
             self.voi_indices[key] = np.where(value.as_array())
 
         self.filter = None 
-
+        self.x_prev = None 
         self.output_dir = output_dir
-        headers = ["iteration", "time"] + self.keys()
+        headers = ["iteration", "time"] + self.keys() + ["normalised_change"] + ["step_size"]
         with open(os.path.join(self.output_dir, "results.csv"), 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(headers)
 
     def __call__(self, algo: Algorithm):
         if self.skip_iteration(algo):
+            print("Skip iteration, dont log")
             return
-        t = getattr(self, '_time', None) or time()
+        t = getattr(self, '_time', None) or time.time()
         row = [algo.iteration, t]
         for tag, value in self.evaluate(algo.x).items():
             row.append(value)
         
+        if self.x_prev is not None:
+            normalised_change = (algo.x - self.x_prev).norm() / algo.x.norm()
+            row.append(normalised_change)
+        else:
+            row.append(np.nan)
+        self.x_prev = algo.x.clone()
+
+        row.append(algo.alpha)
+
         with open(os.path.join(self.output_dir, "results.csv"), 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(row)
+
+        #plt.figure()
+        #plt.imshow(algo.x.as_array()[72,:,:], cmap="gray")
+        #plt.colorbar()
+        #plt.savefig(os.path.join(self.output_dir, "imgs", f"reco_at_{algo.iteration}.png"))
+        #plt.close() 
 
     def evaluate(self, test_im: STIR.ImageData) -> dict[str, float]:
         #assert not any(self.filter.values()), "Filtering not implemented"
@@ -162,15 +223,15 @@ class MetricsWithTimeout(cil_callbacks.Callback):
         self.reset()
 
     def reset(self, seconds=None):
-        self.limit = time() + (self._seconds if seconds is None else seconds)
-        self.start_time = time() #0
+        self.limit = time.time() + (self._seconds if seconds is None else seconds)
+        self.start_time = time.time() #0
 
     def __call__(self, algo: Algorithm):
-        if (now := time()) > self.limit:
+        if (now := time.time()) > self.limit:
             log.warning("Timeout reached. Stopping algorithm.")
             raise StopIteration
         for c in self.callbacks:
-            c._time = now - self.start_time # privately inject walltime-excluding-petric-callbacks
+            c._time = now - self.start_time # privatel
             c(algo)
 
     @staticmethod
@@ -185,7 +246,7 @@ def construct_RDP(penalty_strength, initial_image, kappa, max_scaling=1e-3):
     initial_image: used to determine a smoothing factor (epsilon).
     kappa: used to pass voxel-dependent weights.
     """
-    prior = getattr(STIR, 'CudaRelativeDifferencePrior', STIR.RelativeDifferencePrior)()
+    prior = getattr(STIR, 'CudaRelativeDifferencePrior', STIR.RelativeDifferencePrior)() # CudaRelativeDifferencePrior
     # need to make it differentiable
     epsilon = initial_image.max() * max_scaling
     prior.set_epsilon(epsilon)
@@ -246,19 +307,27 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
     return Dataset(acquired_data, additive_term, mult_factors, OSEM_image, prior, kappa, reference_image,
                    whole_object_mask, background_mask, voi_masks)
 
-
 # create list of existing data
 # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-data_dirs_metrics = [(SRCDIR / "Siemens_mMR_NEMA_IQ", 
+data_dirs_metrics = [ 
+    (SRCDIR / "Siemens_mMR_ACR",
+                      OUTDIR / "Siemens_mMR_ACR",
+                     [MetricsWithTimeout(seconds=600)]),
+                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
                       OUTDIR / "mMR_NEMA",
-                      [MetricsWithTimeout(seconds=300)]),
-                     (SRCDIR / "NeuroLF_Hoffman_Dataset",
+                      [MetricsWithTimeout(seconds=600)]),
+                      (SRCDIR / "NeuroLF_Hoffman_Dataset",
                       OUTDIR / "NeuroLF_Hoffman",
-                     [MetricsWithTimeout(seconds=300)])
+                     [MetricsWithTimeout(seconds=600)]),
+                    (SRCDIR / "Siemens_Vision600_thorax",
+                      OUTDIR / "Vision600_thorax",
+                     [MetricsWithTimeout(seconds=600)]),
+                     
                      ]
 #(SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
 # [MetricsWithTimeout(outdir=OUTDIR / "Vision600_thorax")])]
 
+print(data_dirs_metrics)
 
 from docopt import docopt
 args = docopt(__doc__)
@@ -269,6 +338,8 @@ for srcdir, outdir, metrics in data_dirs_metrics:
     os.makedirs(outdir)
     with open(os.path.join(outdir, "config.yaml"), "w") as file:
         yaml.dump(submission_args, file)
+
+    os.makedirs(os.path.join(outdir, "imgs"))
 
     data = get_data(srcdir=srcdir, outdir=outdir)
     metrics_with_timeout = metrics[0]
@@ -282,7 +353,7 @@ for srcdir, outdir, metrics in data_dirs_metrics:
                            interval=1))
     metrics_with_timeout.reset() # timeout from now
     algo = Submission(data, **submission_args)
-    try:
+    try:    
         algo.run(np.inf, callbacks=metrics + submission_callbacks)
     except Exception:
         print_exc(limit=2)
