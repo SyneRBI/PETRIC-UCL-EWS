@@ -75,30 +75,10 @@ elif method == "bsrem_bb":
     submission_args = {
         "method": "bsrem_bb",
         "initial_step_size": 0.3, 
-        "num_subsets": 16, 
+        "num_subsets": 9, 
         "mode": "staggered",
         "beta": 0.6,
         "bb_init_mode" : "mean" # "short" "mean" "long"
-    }
-elif method == "saga":
-    from main_SAGA import Submission, submission_callbacks
-
-    submission_args = {
-        "method": "saga",
-        "initial_step_size": 0.3, 
-        "relaxation_eta": 0.01,
-        "num_subsets": 14, 
-        "mode": "staggered"
-    }
-elif method == "pnp":
-    from main_PnP import Submission, submission_callbacks
-
-    submission_args = {
-        "method": "pnp",
-        "initial_step_size": 0.3, 
-        "relaxation_eta": 0.01,
-        "num_subsets": 14, 
-        "mode": "staggered"
     }
 elif method == "cursed_bsrem":
     from main_cursed_BSREM import Submission, submission_callbacks
@@ -312,16 +292,16 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 data_dirs_metrics = [ 
     (SRCDIR / "Siemens_mMR_ACR",
                       OUTDIR / "Siemens_mMR_ACR",
-                     [MetricsWithTimeout(seconds=600)]),
+                     [MetricsWithTimeout(seconds=900)]),
                     (SRCDIR / "Siemens_mMR_NEMA_IQ", 
                       OUTDIR / "mMR_NEMA",
-                      [MetricsWithTimeout(seconds=600)]),
+                      [MetricsWithTimeout(seconds=900)]),
                       (SRCDIR / "NeuroLF_Hoffman_Dataset",
                       OUTDIR / "NeuroLF_Hoffman",
-                     [MetricsWithTimeout(seconds=600)]),
+                     [MetricsWithTimeout(seconds=900)]),
                     (SRCDIR / "Siemens_Vision600_thorax",
                       OUTDIR / "Vision600_thorax",
-                     [MetricsWithTimeout(seconds=600)]),
+                     [MetricsWithTimeout(seconds=900)]),
                      
                      ]
 #(SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
