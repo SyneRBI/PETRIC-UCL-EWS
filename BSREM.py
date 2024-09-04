@@ -99,7 +99,7 @@ class BSREMSkeleton(Algorithm):
         ''' value of objective function for one subset '''
         raise NotImplementedError
 
-class BSREM1(BSREMSkeleton):
+class BSREM(BSREMSkeleton):
     ''' BSREM implementation using sirf.STIR objective functions'''
     def __init__(self, data, obj_funs, initial, initial_step_size=1, relaxation_eta=0, **kwargs):
         '''
@@ -123,35 +123,4 @@ class BSREM1(BSREMSkeleton):
     def subset_objective(self, x, subset_num):
         ''' value of objective function for one subset '''
         return self.obj_funs[subset_num](x)
-
-class BSREM2(BSREMSkeleton):
-    ''' BSREM implementation using acquisition models and prior'''
-    def __init__(self, data, acq_models, prior, initial, initial_step_size=1, relaxation_eta=0, **kwargs):
-        '''
-        construct Algorithm with lists of data and acquisition models, prior, initial estimate, initial step size,
-        step-size relaxation (per epoch) and optionally Algorithm parameters.
-
-        WARNING: This version will use the same prior in each subset without rescaling. You should
-        therefore rescale the penalisation_factor of the prior before calling this function. This will
-        change in the future.
-        '''
-        self.acq_models = acq_models
-        self.prior = prior
-        super().__init__(data, initial, initial_step_size, relaxation_eta, **kwargs)
-
-    def subset_sensitivity(self, subset_num):
-        ''' Compute sensitivity for a particular subset'''
-        self.acq_models[subset_num].set_up(self.data[subset_num], self.x)
-        return self.acq_models[subset_num].backward(self.data[subset_num].get_uniform_copy(1))
-
-    def subset_gradient(self, x, subset_num):
-        ''' Compute gradient at x for a particular subset'''
-        f = self.acq_models[subset_num].forward(x)
-        quotient = self.data[subset_num] / f
-        return self.acq_models[subset_num].backward(quotient - 1) - self.prior.gradient(x)
-
-    def subset_objective(self, x, subset_num):
-        ''' value of objective function for one subset '''
-        f = self.acq_models[subset_num].forward(x)
-        return self.data[subset_num].dot(f.log()) - f.sum() - self.prior(x)
 

@@ -116,7 +116,7 @@ class Submission(BSREM):
         This is just an example. Try to modify and improve it!
         """
         mode = kwargs.get("mode", "sequential")
-
+        num_subsets = 1 
         data_sub, acq_models, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,
                                                                     initial_image=data.OSEM_image,
