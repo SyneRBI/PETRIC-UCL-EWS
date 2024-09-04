@@ -12,7 +12,7 @@ import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
 from cil.optimisation.algorithms import Algorithm 
-from herman_meyer import herman_meyer_order
+from utils.herman_meyer import herman_meyer_order
 
 
 class BSREMSkeleton(Algorithm):
@@ -27,7 +27,8 @@ class BSREMSkeleton(Algorithm):
     Step-size uses relaxation: ``initial_step_size`` / (1 + ``relaxation_eta`` * ``epoch()``)
     '''
     def __init__(self, data, initial, initial_step_size, relaxation_eta,
-                 update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
+                 update_filter=STIR.TruncateToCylinderProcessor(),
+                  preconditioner=None, **kwargs):
         '''
         Arguments:
         ``data``: list of items as returned by `partitioner`
@@ -56,6 +57,8 @@ class BSREMSkeleton(Algorithm):
 
         self.subset_order = herman_meyer_order(self.num_subsets)
 
+        self.alpha = None 
+
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
 
@@ -70,12 +73,9 @@ class BSREMSkeleton(Algorithm):
 
     def update(self):
         g = self.subset_gradient(self.x, self.subset_order[self.subset])
-        
-        precond =  self.average_sensitivity / (self.x + self.eps) + RDPHessian
-        
-        #self.x_update = (self.x + self.eps) * g / self.average_sensitivity * self.step_size()
-        self.x_update = g / precond * self.step_size()
-        
+
+        self.alpha = self.step_size()
+        self.x_update = (self.x + self.eps) * g / self.average_sensitivity * self.alpha
 
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
