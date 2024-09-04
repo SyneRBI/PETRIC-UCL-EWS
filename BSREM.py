@@ -8,6 +8,7 @@
 # Copyright 2024 University College London
 
 import numpy
+import numpy as np 
 import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
@@ -59,6 +60,9 @@ class BSREMSkeleton(Algorithm):
 
         self.alpha = None 
 
+        self.x_prev = None 
+        self.x_update_prev = None 
+
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
 
@@ -74,12 +78,25 @@ class BSREMSkeleton(Algorithm):
     def update(self):
         g = self.subset_gradient(self.x, self.subset_order[self.subset])
 
-        self.alpha = self.step_size()
-        self.x_update = (self.x + self.eps) * g / self.average_sensitivity * self.alpha
+        self.x_update = (self.x + self.eps) * g / self.average_sensitivity 
+
+        if self.iteration == 0:
+            self.alpha = self.initial_step_size
+        else:
+            delta_x = self.x - self.x_prev
+            delta_g = self.x_update_prev - self.x_update 
+
+            self.alpha = delta_x.norm()**2 / (delta_x * delta_g).sum()
 
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
-        self.x += self.x_update
+
+        self.x_prev = self.x.clone() 
+        self.x_update_prev = self.x_update.clone() 
+
+        #print("Use step size: ", self.alpha)
+        #print(self.x_update)
+        self.x += self.x_update * self.alpha
         # threshold to non-negative
         self.x.maximum(0, out=self.x)
         self.subset = (self.subset + 1) % self.num_subsets

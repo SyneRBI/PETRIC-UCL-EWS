@@ -106,7 +106,6 @@ class MyPreconditionerNew(Preconditioner):
 class Submission(BSREM):
     # note that `issubclass(BSREM1, Algorithm) == True`
     def __init__(self, data, 
-                       num_subsets: int = 7, 
                        update_objective_interval: int = 10,
                        preconditioner = "osem",
                        **kwargs):
@@ -116,7 +115,8 @@ class Submission(BSREM):
         This is just an example. Try to modify and improve it!
         """
         mode = kwargs.get("mode", "sequential")
-        num_subsets = 1 
+        mode = kwargs.get("num_subsets", 1)
+
         data_sub, acq_models, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,
                                                                     initial_image=data.OSEM_image,
