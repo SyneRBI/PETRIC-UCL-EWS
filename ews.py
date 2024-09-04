@@ -6,7 +6,6 @@
 
 import numpy
 import sirf.STIR as STIR
-from sirf.Utilities import examples_data_path
 
 from cil.optimisation.algorithms import Algorithm 
 
@@ -16,6 +15,10 @@ import numpy as np
 import torch 
 from model.unet import get_unet_model
 from model.normalisation import Normalisation
+from utils.herman_meyer import herman_meyer_order
+
+from model.unrolled import DeepUnrolledPreconditioner
+
 
 class EWSSkeleton(Algorithm):
     ''' Main implementation of a modified BSREM algorithm
@@ -28,7 +31,7 @@ class EWSSkeleton(Algorithm):
 
     Step-size uses relaxation: ``initial_step_size`` / (1 + ``relaxation_eta`` * ``epoch()``)
     '''
-    def __init__(self, data, initial, initial_step_size, relaxation_eta,
+    def __init__(self, data, initial, initial_step_size, relaxation_eta, 
                  update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
         '''
         Arguments:
@@ -57,7 +60,9 @@ class EWSSkeleton(Algorithm):
         self.update_filter = update_filter
         self.configured = True
 
-        
+        self.subset_order = herman_meyer_order(self.num_subsets)
+
+        """
         device = "cuda"
         model = get_unet_model(in_ch=1, 
                            out_ch=1, 
@@ -79,7 +84,28 @@ class EWSSkeleton(Algorithm):
             x_init = model(osem, norm).squeeze().cpu().numpy()
 
         self.x.fill(x_init)
-        
+        """
+
+        ### load unrolled model
+        device = "cpu"
+        unrolled_iterations = 10
+        precond = DeepUnrolledPreconditioner(unrolled_iterations=unrolled_iterations, 
+                                             n_layers=4, 
+                                             hidden_channels=32, 
+                                             kernel_size=3, single_network=True)
+        precond.load_state_dict(torch.load(f"model_weights/precond.pth", weights_only=True))
+        precond.to(device)
+        precond.eval()
+
+        osem = torch.from_numpy(self.x.as_array()).float().to(device).unsqueeze(1) # something x 1 x 200 x200
+        x_init = precond(osem,
+                    obj_funs=self.obj_funs, 
+                    sirf_img=self.x.clone(),
+                    compute_upto=1)[-1].squeeze().detach().cpu().numpy()
+
+        del precond 
+
+        self.x.fill(x_init)
 
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
@@ -94,7 +120,7 @@ class EWSSkeleton(Algorithm):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
     
     def update(self):
-        g = self.subset_gradient(self.x, self.subset)
+        g = self.subset_gradient(self.x, self.subset_order[self.subset])
         self.x_update = (self.x + self.eps) * g / self.average_sensitivity * self.step_size()
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
