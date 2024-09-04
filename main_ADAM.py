@@ -12,9 +12,9 @@ from cil.optimisation.utilities import callbacks
 from petric import Dataset
 from sirf.contrib.partitioner import partitioner
 
-from adam import Adam1
+from adam import Adam
 
-assert issubclass(Adam1, Algorithm)
+assert issubclass(Adam, Algorithm)
 
 
 class MaxIteration(callbacks.Callback):
@@ -30,7 +30,7 @@ class MaxIteration(callbacks.Callback):
         if algorithm.iteration >= self.max_iteration:
             raise StopIteration
 
-class Submission(Adam1):
+class Submission(Adam):
     # note that `issubclass(BSREM1, Algorithm) == True`
     def __init__(self, data: Dataset, 
                  num_subsets: int = 7, 

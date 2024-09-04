@@ -9,11 +9,10 @@ import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
 from cil.optimisation.algorithms import Algorithm 
+from utils.herman_meyer import herman_meyer_order
 
 import time 
 import numpy as np 
-
-import torch 
 
 class AdamSkeleton(Algorithm):
     ''' Main implementation of a modified BSREM algorithm
@@ -64,6 +63,7 @@ class AdamSkeleton(Algorithm):
         self.v = initial.get_uniform_copy(0) 
         self.v_hat = initial.get_uniform_copy(0) 
 
+        self.subset_order = herman_meyer_order(self.num_subsets)
 
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
@@ -78,7 +78,7 @@ class AdamSkeleton(Algorithm):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
-        g = self.subset_gradient(self.x, self.subset)
+        g = self.subset_gradient(self.x, self.subset_order[self.subset])
         #g = (self.x + self.eps) * g / self.average_sensitivity
 
         self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
@@ -92,7 +92,8 @@ class AdamSkeleton(Algorithm):
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 
-        self.x += self.x_update
+        
+        self.x += ((self.x * self.eps)/self.average_sensitivity).power(0.5) * self.x_update
         # threshold to non-negative
         
         self.x.maximum(0, out=self.x)
@@ -115,8 +116,8 @@ class AdamSkeleton(Algorithm):
         ''' value of objective function for one subset '''
         raise NotImplementedError
 
-class Adam1(AdamSkeleton):
-    ''' BSREM implementation using sirf.STIR objective functions'''
+class Adam(AdamSkeleton):
+    ''' ADAM implementation using sirf.STIR objective functions'''
     def __init__(self, data, obj_funs, initial, initial_step_size=1, relaxation_eta=0, **kwargs):
         '''
         construct Algorithm with lists of data and, objective functions, initial estimate, initial step size,
