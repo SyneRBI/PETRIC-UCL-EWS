@@ -37,6 +37,7 @@ class RDPDiagHessTorch:
         self.y_dim = y_dim
         self.x_dim = x_dim
         
+
     def compute(self, x):
         x = torch.tensor(x.as_array(), dtype=torch.float32).cuda()
         x_padded = torch.nn.functional.pad(x[None], pad=(1, 1, 1, 1, 1, 1), mode='replicate')[0]
@@ -82,6 +83,9 @@ class cursed_BSREM(BSREMSkeleton):
         self.update_rdp_diag_hess_iter = update_rdp_diag_hess_iter
         self.accumulate_gradient_iter = accumulate_gradient_iter
         self.accumulate_gradient_num = accumulate_gradient_num
+
+        self.alpha = 1.0
+
         #self.accumulate_gradient_iter = [10, 15, 20]
         # check list of accumulate_gradient_iter is monotonically increasing
         assert all(self.accumulate_gradient_iter[i] < self.accumulate_gradient_iter[i+1] for i in range(len(self.accumulate_gradient_iter)-1))
@@ -111,7 +115,7 @@ class cursed_BSREM(BSREMSkeleton):
         self.x_update = self.g / self.precond
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
-        self.x += 0.9*self.x_update
+        self.x += self.x_update
         self.x.maximum(0, out=self.x)
 
     def update_objective(self):

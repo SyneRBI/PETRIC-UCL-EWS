@@ -1,7 +1,7 @@
 
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
-from petric import Dataset
+#from petric import Dataset
 from cursed_BSREM import cursed_BSREM
 from sirf.contrib.partitioner import partitioner
 
@@ -19,7 +19,7 @@ class MaxIteration(callbacks.Callback):
 
 class Submission(cursed_BSREM):
     # note that `issubclass(BSREM1, Algorithm) == True`
-    def __init__(self, data: Dataset, 
+    def __init__(self, data, 
                        num_subsets: int = 7, 
                        update_objective_interval: int = 10,
                        **kwargs):
