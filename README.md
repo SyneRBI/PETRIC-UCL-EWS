@@ -7,6 +7,11 @@
 [![discord](https://img.shields.io/badge/chat-discord-blue?logo=discord&logoColor=white)](https://discord.gg/Ayd72Aa4ry)
 
 
+## TAGS
+- v0.0, BSREM with constant step size and the full gradient
+- v0.1, ??
+- v0.2, BSREM with Barzilai-Borwein step size and the full gradient 
+
 ## Implemented Approaches
 
 ### 1) Educated Warm Start
