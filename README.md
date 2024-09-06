@@ -7,6 +7,27 @@
 [![discord](https://img.shields.io/badge/chat-discord-blue?logo=discord&logoColor=white)](https://discord.gg/Ayd72Aa4ry)
 
 
+## TAGS
+- v0.0, BSREM with constant step size and the full gradient
+- v0.1, ??
+- v0.2, BSREM with Barzilai-Borwein step size and the full gradient 
+
+### Creating tags note:
+
+Make sure on the right branch
+
+
+```
+git tag -a <tagname> -m '<message>'
+git push origin --tags
+```
+
+
+## Branches
+- Algo1, BSREM with Barzilai-Borwein step size
+- Algo2, BSREM with cursed preconditioner
+- Algo3, Adam
+
 ## Implemented Approaches
 
 ### 1) Educated Warm Start
