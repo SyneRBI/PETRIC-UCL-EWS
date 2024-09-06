@@ -32,3 +32,9 @@ def herman_meyer_order(n):
                 value = 0
             order[element] = order[element] + math.prod(factors[factor_n+1:]) * mapping
     return order
+
+
+if __name__ == "__main__":
+
+    for i in range(1,65):
+        print(i, herman_meyer_order(i))
