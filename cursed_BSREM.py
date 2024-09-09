@@ -12,7 +12,7 @@ import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
 from cil.optimisation.algorithms import Algorithm 
-from herman_meyer import herman_meyer_order
+from utils.herman_meyer import herman_meyer_order
 import numpy as np
 import torch
 
@@ -75,7 +75,7 @@ class BSREMSkeleton(Algorithm):
         print("Configured cursed_BSREM")
 
 class cursed_BSREM(BSREMSkeleton):
-    def __init__(self, data, obj_funs, accumulate_gradient_iter, accumulate_gradient_num, update_rdp_diag_hess_iter, **kwargs):
+    def __init__(self, data, obj_funs, accumulate_gradient_iter, accumulate_gradient_num, update_rdp_diag_hess_iter, initial_step_size, relaxation_eta,  **kwargs):
         
         self.obj_funs = obj_funs
         
@@ -84,8 +84,11 @@ class cursed_BSREM(BSREMSkeleton):
         self.accumulate_gradient_iter = accumulate_gradient_iter
         self.accumulate_gradient_num = accumulate_gradient_num
 
-        self.alpha = 1.0
+        self.initial_step_size=initial_step_size
+        self.relaxation_eta=relaxation_eta
+        self.alpha = initial_step_size
 
+        self.num_subsets_initial = len(data)
         #self.accumulate_gradient_iter = [10, 15, 20]
         # check list of accumulate_gradient_iter is monotonically increasing
         assert all(self.accumulate_gradient_iter[i] < self.accumulate_gradient_iter[i+1] for i in range(len(self.accumulate_gradient_iter)-1))
@@ -93,14 +96,23 @@ class cursed_BSREM(BSREMSkeleton):
         # check if accumulate_gradient_iter and accumulate_gradient_num have the same length
         assert len(self.accumulate_gradient_iter) == len(self.accumulate_gradient_num)
 
+    def step_size(self):
+        return self.initial_step_size / (1 + self.relaxation_eta * self.iteration)
+
     def get_number_of_subsets_to_accumulate_gradient(self):
         for index, boundary in enumerate(self.accumulate_gradient_iter):
-            if self.iteration < boundary:
+            if self.iteration < boundary*self.num_subsets_initial:
                 return self.accumulate_gradient_num[index]
         return self.num_subsets
 
     def update(self):
         num_to_accumulate = self.get_number_of_subsets_to_accumulate_gradient()
+
+        # use at most all subsets
+        if num_to_accumulate > self.num_subsets_initial:
+            num_to_accumulate = self.num_subsets_initial
+        
+        print(f"Use {num_to_accumulate} subsets at iteration {self.iteration}")
         for i in range(num_to_accumulate):
             if i == 0:
                 self.g = self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
@@ -115,7 +127,9 @@ class cursed_BSREM(BSREMSkeleton):
         self.x_update = self.g / self.precond
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
-        self.x += self.x_update
+
+        self.alpha = self.step_size()
+        self.x += self.alpha * self.x_update
         self.x.maximum(0, out=self.x)
 
     def update_objective(self):

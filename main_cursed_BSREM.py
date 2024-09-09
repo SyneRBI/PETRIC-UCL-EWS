@@ -3,6 +3,8 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 #from petric import Dataset
 from cursed_BSREM import cursed_BSREM
+from utils.number_of_subsets import compute_number_of_subsets
+
 from sirf.contrib.partitioner import partitioner
 
 assert issubclass(cursed_BSREM, Algorithm)
@@ -18,16 +20,19 @@ class MaxIteration(callbacks.Callback):
 
 
 class Submission(cursed_BSREM):
-    # note that `issubclass(BSREM1, Algorithm) == True`
     def __init__(self, data, 
-                       num_subsets: int = 7, 
-                       update_objective_interval: int = 10,
+                       update_objective_interval: int = 1000000,
                        **kwargs):
         
+        views = data.acquired_data.shape[2]
+        num_subsets = compute_number_of_subsets(views)
         mode = kwargs.get("mode", "staggered")
         accumulate_gradient_iter = kwargs.get("accumulate_gradient_iter", [10, 15, 20])
         accumulate_gradient_num = kwargs.get("accumulate_gradient_num", [1, 10, 20])
         update_rdp_diag_hess_iter = kwargs.get("update_rdp_diag_hess_iter", [10])
+
+        initial_step_size = kwargs.get("initial_step_size", 0.4)
+        relaxation_eta = kwargs.get("relaxation_eta", 0.01)
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,
@@ -45,6 +50,8 @@ class Submission(cursed_BSREM):
                          accumulate_gradient_iter,
                          accumulate_gradient_num,
                          update_rdp_diag_hess_iter,
-                         update_objective_interval=update_objective_interval)
+                         update_objective_interval=update_objective_interval,
+                         initial_step_size=initial_step_size,
+                         relaxation_eta=relaxation_eta)
 
 submission_callbacks = []

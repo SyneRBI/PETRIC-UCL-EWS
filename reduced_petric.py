@@ -33,10 +33,10 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks as cil_callbacks
 #from img_quality_cil_stir import ImageQualityCallback
 
-#import torch 
-#torch.cuda.set_per_process_memory_fraction(0.8)
+import torch 
+torch.cuda.set_per_process_memory_fraction(0.8)
 
-method = "bsrem_bb"
+method = "cursed_bsrem"
 
 if method == "ews":
     from main_EWS import Submission, submission_callbacks
@@ -53,9 +53,16 @@ elif method == "adam":
     from main_ADAM import Submission, submission_callbacks
     submission_args = { 
         "method": "adam",
-        "initial_step_size": 2.0, 
-        "relaxation_eta": 0.02,
-        "num_subsets": 8, 
+        "initial_step_size": 1e-3, 
+        "relaxation_eta": 0.005,
+        "mode": "staggered"
+    }
+elif method == "adadelta":
+    from main_ADADELTA import Submission, submission_callbacks
+    submission_args = { 
+        "method": "adam",
+        "initial_step_size": 1.0, 
+        "relaxation_eta": 0.005,
         "mode": "staggered"
     }
 elif method == "bsrem":
@@ -63,9 +70,9 @@ elif method == "bsrem":
 
     submission_args = {
         "method": "bsrem",
-        "initial_step_size": 0.3, 
+        "initial_step_size": 0.8, 
         "relaxation_eta": 0.01,
-        "num_subsets": 8, 
+        #"num_subsets": 2, 
         "mode": "staggered",
         "preconditioner" : None 
     }
@@ -74,22 +81,22 @@ elif method == "bsrem_bb":
 
     submission_args = {
         "method": "bsrem_bb",
-        "initial_step_size": 0.3, 
-        "num_subsets": 9, 
+        "initial_step_size": 0.9, 
+#        "num_subsets": 3, 
         "mode": "staggered",
-        "beta": 0.6,
+        "beta": 0.75,
         "bb_init_mode" : "mean" # "short" "mean" "long"
     }
 elif method == "cursed_bsrem":
     from main_cursed_BSREM import Submission, submission_callbacks
     submission_args = {
         "method": "cursed_bsrem",
-        "num_subsets": 16,
         "mode": "staggered",
-        "update_objective_interval": 10,
-        "accumulate_gradient_iter": [50, 75],
-        "accumulate_gradient_num": [1, 8],
-        "update_rdp_diag_hess_iter": [i+4 for i in range(100)][:2]
+        "accumulate_gradient_iter": [2, 4, 8, 16, 32],
+        "accumulate_gradient_num": [1, 2, 4, 8, 16],
+        "update_rdp_diag_hess_iter": [i+4 for i in range(100)][:2],
+        "initial_step_size": 0.6, 
+        "relaxation_eta": 0.001,
     }
 else:
     raise NotImplementedError
@@ -141,7 +148,7 @@ class QualityMetrics(Callback):
         self.filter = None 
         self.x_prev = None 
         self.output_dir = output_dir
-        headers = ["iteration", "time"] + self.keys() + ["normalised_change"] + ["step_size"]
+        headers = ["iteration", "time"] + self.keys() + ["normalised_change"] + ["step_size"] + ["loss"]
         with open(os.path.join(self.output_dir, "results.csv"), 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(headers)
@@ -164,6 +171,8 @@ class QualityMetrics(Callback):
 
         row.append(algo.alpha)
 
+        loss = algo.get_last_loss()
+        row.append(loss)
         with open(os.path.join(self.output_dir, "results.csv"), 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(row)
@@ -302,12 +311,8 @@ data_dirs_metrics = [
                     (SRCDIR / "Siemens_Vision600_thorax",
                       OUTDIR / "Vision600_thorax",
                      [MetricsWithTimeout(seconds=900)]),
-                     
                      ]
-#(SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
-# [MetricsWithTimeout(outdir=OUTDIR / "Vision600_thorax")])]
 
-print(data_dirs_metrics)
 
 from docopt import docopt
 args = docopt(__doc__)
@@ -316,8 +321,7 @@ logging.basicConfig(level=getattr(logging, args["--log"].upper()))
 for srcdir, outdir, metrics in data_dirs_metrics:
     print("OUTPUT dir: ", outdir)
     os.makedirs(outdir)
-    with open(os.path.join(outdir, "config.yaml"), "w") as file:
-        yaml.dump(submission_args, file)
+
 
     os.makedirs(os.path.join(outdir, "imgs"))
 
@@ -332,7 +336,11 @@ for srcdir, outdir, metrics in data_dirs_metrics:
                            output_dir=outdir,
                            interval=1))
     metrics_with_timeout.reset() # timeout from now
-    algo = Submission(data, **submission_args)
+    algo = Submission(data, update_objective_interval=100000, **submission_args)
+    submission_args["num_subsets"] = algo.num_subsets
+
+    with open(os.path.join(outdir, "config.yaml"), "w") as file:
+        yaml.dump(submission_args, file)
     try:    
         algo.run(np.inf, callbacks=metrics + submission_callbacks)
     except Exception:
