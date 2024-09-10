@@ -57,13 +57,11 @@ elif method == "adam":
         "relaxation_eta": 0.005,
         "mode": "staggered"
     }
-elif method == "adadelta":
-    from main_ADADELTA import Submission, submission_callbacks
+elif method == "osem":
+    from main_OSEM import Submission, submission_callbacks
     submission_args = { 
-        "method": "adam",
-        "initial_step_size": 1.0, 
-        "relaxation_eta": 0.005,
-        "mode": "staggered"
+        #"method": "osem",
+        #"mode": "staggered"
     }
 elif method == "bsrem":
     from main_BSREM import Submission, submission_callbacks
@@ -95,7 +93,7 @@ elif method == "cursed_bsrem":
         "accumulate_gradient_iter": [2, 4, 8, 16, 32],
         "accumulate_gradient_num": [1, 2, 4, 8, 16],
         "update_rdp_diag_hess_iter": [i+4 for i in range(100)][:2],
-        "initial_step_size": 0.6, 
+        "initial_step_size": 0.4, 
         "relaxation_eta": 0.001,
     }
 else:
@@ -177,9 +175,13 @@ class QualityMetrics(Callback):
             writer = csv.writer(file)
             writer.writerow(row)
 
-        #plt.figure()
-        #plt.imshow(algo.x.as_array()[72,:,:], cmap="gray")
-        #plt.colorbar()
+        #fig, (ax1, ax2) = plt.subplots(1,2)
+        #print("mean of pred / mean of gt: ", np.mean(algo.x.as_array()[72,:,:]), np.mean(self.ref_im_arr[72,:,:]))
+        #im = ax1.imshow(algo.x.as_array()[56,:,:], cmap="gray")
+        #fig.colorbar(im, ax=ax1)
+
+        #im = ax2.imshow(self.ref_im_arr[56,:,:], cmap="gray")
+        #fig.colorbar(im, ax=ax2)
         #plt.savefig(os.path.join(self.output_dir, "imgs", f"reco_at_{algo.iteration}.png"))
         #plt.close() 
 
@@ -273,6 +275,15 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
     acquired_data = STIR.AcquisitionData(str(srcdir / 'prompts.hs'))
     additive_term = STIR.AcquisitionData(str(srcdir / 'additive_term.hs'))
     mult_factors = STIR.AcquisitionData(str(srcdir / 'mult_factors.hs'))
+    print("SHAPE: ", acquired_data.shape, additive_term.shape, mult_factors.shape)
+    #if acquired_data.shape[0] > 1:
+    #    tof_bins = acquired_data.shape[0]
+        
+    #    acquired_data = acquired_data.rebin(num_tof_bins_to_combine=int(tof_bins), do_normalisation=True, num_segments_to_combine=1)
+    #    additive_term = additive_term.rebin(num_tof_bins_to_combine=int(tof_bins), do_normalisation=True, num_segments_to_combine=1)
+    #    mult_factors = mult_factors.rebin(num_tof_bins_to_combine=int(tof_bins), do_normalisation=True, num_segments_to_combine=1)
+    #    print("NEW SHAPE: ", acquired_data.shape, additive_term.shape, mult_factors.shape)
+
     OSEM_image = STIR.ImageData(str(srcdir / 'OSEM_image.hv'))
     kappa = STIR.ImageData(str(srcdir / 'kappa.hv'))
     if (penalty_strength_file := (srcdir / 'penalisation_factor.txt')).is_file():
@@ -298,19 +309,18 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 
 # create list of existing data
 # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-data_dirs_metrics = [ 
-    (SRCDIR / "Siemens_mMR_ACR",
-                      OUTDIR / "Siemens_mMR_ACR",
-                     [MetricsWithTimeout(seconds=900)]),
-                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
+data_dirs_metrics = [                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
                       OUTDIR / "mMR_NEMA",
-                      [MetricsWithTimeout(seconds=900)]),
-                      (SRCDIR / "NeuroLF_Hoffman_Dataset",
-                      OUTDIR / "NeuroLF_Hoffman",
-                     [MetricsWithTimeout(seconds=900)]),
-                    (SRCDIR / "Siemens_Vision600_thorax",
+                      [MetricsWithTimeout(seconds=20)]),  
+    (SRCDIR / "Siemens_Vision600_thorax",
                       OUTDIR / "Vision600_thorax",
                      [MetricsWithTimeout(seconds=900)]),
+                     (SRCDIR / "Siemens_mMR_ACR",
+                      OUTDIR / "Siemens_mMR_ACR",
+                     [MetricsWithTimeout(seconds=900)]),
+                      (SRCDIR / "NeuroLF_Hoffman_Dataset",
+                      OUTDIR / "NeuroLF_Hoffman",
+                     [MetricsWithTimeout(seconds=900)])
                      ]
 
 

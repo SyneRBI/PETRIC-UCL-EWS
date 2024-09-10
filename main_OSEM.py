@@ -10,9 +10,9 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 import sirf.STIR as STIR
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
-from petric import Dataset
 from sirf.contrib.partitioner.partitioner import partition_indices
 
+from utils.number_of_subsets import compute_number_of_subsets
 
 class MaxIteration(callbacks.Callback):
     """
@@ -37,7 +37,7 @@ class Submission(Algorithm):
     NB: this example does not use the `sirf.STIR` Poisson objective function.
     NB: see https://github.com/SyneRBI/SIRF-Contribs/tree/master/src/Python/sirf/contrib/BSREM
     """
-    def __init__(self, data: Dataset, num_subsets: int = 7, update_objective_interval: int = 10, **kwargs):
+    def __init__(self, data, update_objective_interval: int = 1000000, **kwargs):
         """
         Initialisation function, setting up data & (hyper)parameters.
         NB: in practice, `num_subsets` should likely be determined from the data.
@@ -52,6 +52,13 @@ class Submission(Algorithm):
         # find views in each subset
         # (note that SIRF can currently only do subsets over views)
         views = data.mult_factors.dimensions()[2]
+        if data.acquired_data.shape[0] == 1:
+            views = data.acquired_data.shape[2]
+            num_subsets = compute_number_of_subsets(views)
+        else:
+            num_subsets = 25 
+        self.num_subsets = num_subsets
+        self.alpha = 1.0
         partitions_idxs = partition_indices(num_subsets, list(range(views)), stagger=True)
 
         # for each subset: find data, create acq_model, and create subset_sensitivity (backproj of 1)
@@ -72,7 +79,7 @@ class Submission(Algorithm):
             self.prompts.append(prompts_subset)
             self.sensitivities.append(subset_sensitivity)
 
-        super().__init__(update_objective_interval=update_objective_interval, **kwargs)
+        super().__init__(update_objective_interval=update_objective_interval)#, **kwargs)
         self.configured = True # required by Algorithm
 
     def update(self):
@@ -95,4 +102,4 @@ class Submission(Algorithm):
         return 0
 
 
-submission_callbacks = [MaxIteration(660)]
+submission_callbacks = []
