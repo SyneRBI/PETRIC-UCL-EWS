@@ -62,6 +62,7 @@ class BSREMSkeleton(Algorithm):
         self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
+
         self.g = initial.get_uniform_copy(0)
         self.precond = initial.get_uniform_copy(0)
         self.rdp_diag_hess_obj = RDPDiagHessTorch(self.dataset.OSEM_image.copy(), self.dataset.prior)
@@ -72,6 +73,8 @@ class BSREMSkeleton(Algorithm):
         self.update_filter = update_filter
         self.subset_order = herman_meyer_order(self.num_subsets)
         self.configured = True
+        self.v_t = initial.get_uniform_copy(0)
+
         print("Configured cursed_BSREM")
 
 class cursed_BSREM(BSREMSkeleton):
@@ -88,6 +91,10 @@ class cursed_BSREM(BSREMSkeleton):
         self.relaxation_eta=relaxation_eta
         self.alpha = initial_step_size
 
+        self.c = 1
+        self.gamma = 0.9
+
+        
         self.num_subsets_initial = len(data)
         #self.accumulate_gradient_iter = [10, 15, 20]
         # check list of accumulate_gradient_iter is monotonically increasing
@@ -99,6 +106,9 @@ class cursed_BSREM(BSREMSkeleton):
     def step_size(self):
         return self.initial_step_size / (1 + self.relaxation_eta * self.iteration)
 
+    def epoch(self):
+            return (self.iteration + 1) // self.num_subsets_initial
+
     def get_number_of_subsets_to_accumulate_gradient(self):
         for index, boundary in enumerate(self.accumulate_gradient_iter):
             if self.iteration < boundary*self.num_subsets_initial:
@@ -106,13 +116,16 @@ class cursed_BSREM(BSREMSkeleton):
         return self.num_subsets
 
     def update(self):
-        num_to_accumulate = self.get_number_of_subsets_to_accumulate_gradient()
+        if self.iteration == 0:
+            num_to_accumulate = self.num_subsets
+        else:
+            num_to_accumulate = self.get_number_of_subsets_to_accumulate_gradient()
 
         # use at most all subsets
         if num_to_accumulate > self.num_subsets_initial:
             num_to_accumulate = self.num_subsets_initial
         
-        print(f"Use {num_to_accumulate} subsets at iteration {self.iteration}")
+        #print(f"Use {num_to_accumulate} subsets at iteration {self.iteration}")
         for i in range(num_to_accumulate):
             if i == 0:
                 self.g = self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
@@ -124,12 +137,28 @@ class cursed_BSREM(BSREMSkeleton):
         if self.iteration in self.update_rdp_diag_hess_iter:
             self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
             self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
+        
         self.x_update = self.g / self.precond
+        
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 
-        self.alpha = self.step_size()
-        self.x += self.alpha * self.x_update
+        if self.iteration == 0:
+            self.v_t = self.x_update
+        else:
+            self.v_t = self.gamma * self.v_t + (1 - self.gamma) * self.x_update
+
+        step_size_estimate = min(max(1/(self.v_t.norm() + 1e-5)**2, 0.05), 3.0)
+
+        k = self.iteration + 2
+        phik = (k + 1) # /self.num_subsets_initial
+        self.c = self.c ** ((k-2)/(k-1)) * (step_size_estimate*phik) ** (1/(k-1))
+        self.alpha = self.c / phik
+        #print("1 / Norm of x_update: ", 1/self.x_update.norm(), " 1 / Norm of Gradient: ", 1/self.g.norm())
+
+        print("Step size: ", self.alpha, " estimate: ", step_size_estimate)
+
+        self.x += self.alpha * self.v_t
         self.x.maximum(0, out=self.x)
 
     def update_objective(self):
@@ -142,3 +171,10 @@ class cursed_BSREM(BSREMSkeleton):
         for s in range(len(self.data)):
             v += self.obj_funs[s](x)
         return v
+
+    def subset_sensitivity(self, subset_num):
+        ''' Compute sensitivity for a particular subset'''
+        self.obj_funs[subset_num].set_up(self.x)
+        # note: sirf.STIR Poisson likelihood uses `get_subset_sensitivity(0) for the whole
+        # sensitivity if there are no subsets in that likelihood
+        return self.obj_funs[subset_num].get_subset_sensitivity(0)

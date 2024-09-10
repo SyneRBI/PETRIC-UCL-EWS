@@ -24,8 +24,13 @@ class Submission(cursed_BSREM):
                        update_objective_interval: int = 1000000,
                        **kwargs):
         
-        views = data.acquired_data.shape[2]
-        num_subsets = compute_number_of_subsets(views)
+        if data.acquired_data.shape[0] == 1:
+            views = data.acquired_data.shape[2]
+            num_subsets = compute_number_of_subsets(views)
+        else:
+            num_subsets = 25 
+
+        print(f"Use {num_subsets} subsets.")
         mode = kwargs.get("mode", "staggered")
         accumulate_gradient_iter = kwargs.get("accumulate_gradient_iter", [10, 15, 20])
         accumulate_gradient_num = kwargs.get("accumulate_gradient_num", [1, 10, 20])
@@ -40,10 +45,18 @@ class Submission(cursed_BSREM):
                                                                     mode = mode)
         self.dataset = data
         # WARNING: modifies prior strength with 1/num_subsets (as currently needed for BSREM implementations)
+        # data.prior.set_penalisation_factor(data.prior.get_penalisation_factor() / len(obj_funs))
+        data.prior.set_up(data.OSEM_image)
+        my_prior = data.prior
+        img = data.OSEM_image
+        breakpoint()
+
         data.prior.set_penalisation_factor(data.prior.get_penalisation_factor() / len(obj_funs))
         data.prior.set_up(data.OSEM_image)
         for f in obj_funs: # add prior evenly to every objective function
             f.set_prior(data.prior)
+
+        breakpoint()
 
         super().__init__(data_sub, 
                          obj_funs,
