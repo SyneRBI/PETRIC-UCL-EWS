@@ -21,3 +21,6 @@ model_weights/
 imgs/
 old/
 runs/
+runs2/
+forward_kernel/
+postprocessing_unet/
