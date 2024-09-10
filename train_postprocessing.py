@@ -30,45 +30,54 @@ class OSEMDataset(torch.utils.data.Dataset):
 
 def training() -> None:
     device = "cuda"
-    epochs = 100 
-    
-    model = get_unet_model(in_ch=1, 
-                           out_ch=1, 
-                           scales=5, 
-                           skip=16,
-                           im_size=256,
-                           channels=[16, 32, 64, 128, 256], 
-                           use_sigmoid=False,
-                           use_norm=True)
-    
+    epochs = 300 
+    test_on = "Siemens_Vision600_thorax"
+
+    #model = get_unet_model(in_ch=1, 
+    #                       out_ch=1, 
+    #                       scales=5, 
+    #                       skip=16,
+    #                       im_size=256,
+    #                       channels=[16, 32, 64, 128, 256], 
+    #                       use_sigmoid=False,
+    #                       use_norm=True)
+
+    model = torch.nn.Sequential(torch.nn.Conv2d(1, 1, 15, bias=False,padding=7))
+    print(model[0])
+
     model.to(device)
     print("Number of Parameters: ", sum([p.numel() for p in model.parameters()]))
 
     ###### SET LOGGING ######
-    current_time = datetime.datetime.now().strftime('%b%d_%H-%M-%S')
-    log_dir = os.path.join('postprocessing_unet', current_time)
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_dir = os.path.join('postprocessing_unet', test_on, current_time)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
 
-    dataset_neuro = OSEMDataset(
-        osem_file="data/NeuroLF_Hoffman_Dataset_osem.npy",
-        gt_file="data/NeuroLF_Hoffman_Dataset_gt.npy"
-    )
-    dataset_nema = OSEMDataset(
-        osem_file="data/Siemens_mMR_NEMA_IQ_osem.npy",
-        gt_file="data/Siemens_mMR_NEMA_IQ_gt.npy"
-    )
-    dataset = ConcatDataset([dataset_neuro, dataset_nema])
-    print("LENGTH OF FULL DATASET: ", len(dataset))
+    ### cross validation: train on A,B,C - test on D
+    datasets = ["Siemens_mMR_ACR", "NeuroLF_Hoffman_Dataset", "Siemens_mMR_NEMA_IQ", "Siemens_Vision600_thorax"]
 
-    train_size = int(0.9 * len(dataset))
-    val_size = len(dataset) - train_size
+    #datasets.remove(test_on)
 
+    train_dataset = [] 
+    for data in datasets:
+        train_dataset.append(OSEMDataset(
+            osem_file=f"data/{data}_osem.npy",
+            gt_file=f"data/{data}_gt.npy"
+        ))
+    
 
-    train_dl = DataLoader(dataset, batch_size=8, shuffle=True)
+    train_dataset = ConcatDataset(train_dataset)
+    print("LENGTH OF FULL DATASET: ", len(train_dataset))
+    train_dl = DataLoader(train_dataset, batch_size=8, shuffle=True)
 
+    val_dataset = OSEMDataset(
+            osem_file=f"data/{test_on}_osem.npy",
+            gt_file=f"data/{test_on}_gt.npy"
+        )
+    val_dl = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
     # reference, osem, measurements, contamination_factor, attn_factors
     get_norm = Normalisation("osem_mean")
@@ -77,7 +86,7 @@ def training() -> None:
         model.train()
         print(f"Epoch: {epoch}")
         mean_loss = []
-        for idx, batch in tqdm(enumerate(train_dl), total=len(train_dl)):
+        for _, batch in tqdm(enumerate(train_dl), total=len(train_dl)):
             # reference, scale_factor, osem, norm, measurements, contamination_factor, attn_factors
             optimizer.zero_grad()
 
@@ -87,20 +96,50 @@ def training() -> None:
             osem = batch[1]
             osem = osem.to(device)
 
-            norm = get_norm(osem, measurements=None, contamination_factor=None)
+            #norm = get_norm(osem, measurements=None, contamination_factor=None)
 
-            x_pred = model(osem, norm)
-            
-            loss = torch.mean((x_pred - reference)**2)
+            x_pred = model(osem) #model(osem, norm)
+            loss = torch.sum((x_pred - reference)**2)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
             optimizer.step()
 
             mean_loss.append(loss.item())
 
-        print("Mean loss: ", np.mean(mean_loss))
+        print("Train loss: ", np.mean(mean_loss))
 
-    torch.save(model.state_dict(), os.path.join(log_dir, "model.pt"))
+        model.eval()
+        with torch.no_grad():
+            mean_loss = []
+            for _, batch in tqdm(enumerate(val_dl), total=len(val_dl)):
+                # reference, scale_factor, osem, norm, measurements, contamination_factor, attn_factors
+
+                reference = batch[0]
+                reference = reference.to(device)
+
+                osem = batch[1]
+                osem = osem.to(device)
+
+                #norm = get_norm(osem, measurements=None, contamination_factor=None)
+
+                x_pred = model(osem)#, norm)
+                
+                loss = torch.sum((x_pred - reference)**2)
+
+                mean_loss.append(loss.item())
+
+        print("Val loss: ", np.mean(mean_loss))
+
+        #import matplotlib.pyplot as plt 
+
+        #fig, (ax1, ax2, ax3, ax4) = plt.subplots(1,4)
+        #ax1.imshow(reference[4][0].cpu().numpy(), cmap="gray")
+        #ax2.imshow(x_pred[4][0].cpu().numpy(), cmap="gray")
+        #ax3.imshow(osem[4][0].cpu().numpy(), cmap="gray")
+        #im = ax4.imshow(model[0].weight[0][0].cpu().detach().numpy())
+        #fig.colorbar(im, ax=ax4)
+        #plt.show()
+        torch.save(model.state_dict(), os.path.join(log_dir, "model.pt"))
 
 
 
