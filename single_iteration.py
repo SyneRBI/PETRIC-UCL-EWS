@@ -7,6 +7,7 @@ import logging
 import os
 from dataclasses import dataclass
 from matplotlib import pyplot as plt
+from skimage.metrics import mean_squared_error as mse
 
 
 
@@ -130,6 +131,25 @@ _, _, full_obj_fun_thorax = partitioner.data_partition(data_thorax.acquired_data
                                                             mode="staggered") """
 print("Data partitioned")
 
+def evaluate_quality_metrics(reference, prediction, whole_object_mask, background_mask, voi_masks):
+    whole_object_indices = np.where(whole_object_mask.as_array())
+    background_indices = np.where(background_mask.as_array())
+    norm = reference[background_indices].mean()
+
+    voi_indices = {}
+    for key, value in voi_masks.items():
+        voi_indices[key] = np.where(value.as_array())
+
+    whole = {
+        "RMSE_whole_object": np.sqrt(
+            mse(reference[whole_object_indices], prediction[whole_object_indices])) / norm,
+        "RMSE_background": np.sqrt(
+            mse(reference[background_indices], prediction[background_indices])) / norm}
+    local = {
+        f"AEM_VOI_{voi_name}": np.abs(prediction[voi_indices].mean() - reference[voi_indices].mean()) /
+        norm for voi_name, voi_indices in sorted(voi_indices.items())}
+    return {**whole, **local}
+
 # %%
 import torch
 
@@ -193,17 +213,24 @@ for i in range(100):
     ax[1].set_title("Gradient divided by Sensitivity")
     ax[2].imshow(precond_grad.detach().cpu().numpy()[72, 0, :, :])
     ax[2].set_title("Preconditioned Gradient")
-    plt.savefig(f"gradient_{i}.png")
+    plt.savefig(f"tmp/gradient_{i}.png")
     plt.close()
     x_torch = osem_input_torch.unsqueeze(1) - precond_grad
     x_torch.clamp_(0)
+
+    print(evaluate_quality_metrics(data_hoffman.reference_image.as_array(), 
+                                x_torch.detach().cpu().squeeze().numpy(),
+                                data_hoffman.whole_object_mask,
+                                data_hoffman.background_mask,
+                                data_hoffman.voi_masks))
+
     loss = _SIRF_objective_wrapper.apply(x_torch, x_sirf, full_obj_fun[0])
     loss.backward()
     optimizer.step()
     print(f"Loss: {loss.item()}")
     plt.imshow(x_torch.detach().cpu().numpy()[72,0, :, :])
     plt.colorbar()
-    plt.savefig(f"image_{i}.png")
+    plt.savefig(f"tmp/image_{i}.png")
     plt.close()
 
 
