@@ -9,8 +9,11 @@
 
 ## TAGS
 - v0.0, BSREM with constant step size and the full gradient
-- v0.1, ??
+- v0.1, BUG
 - v0.2, BSREM with Barzilai-Borwein step size and the full gradient 
+- v0.3 BUG
+- v0.4 DOG-BSREM
+- v0.5 Warm-Start SAGA
 
 ### Creating tags note:
 
