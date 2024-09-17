@@ -2,7 +2,9 @@
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 
-from bsrem import BSREM
+#from bsrem import BSREM
+#from fista import BSREM
+from saga import SAGA as BSREM
 from utils.number_of_subsets import compute_number_of_subsets
 
 #from sirf.contrib.partitioner import partitioner
@@ -48,10 +50,10 @@ class Submission(BSREM):
             f.set_prior(data.prior)
 
         super().__init__(data_sub, 
-                         obj_funs,
-                         accumulate_gradient_iter=accumulate_gradient_iter,
-                         accumulate_gradient_num=accumulate_gradient_num,
-                         update_objective_interval=update_objective_interval,
-                         gamma=gamma)
+                         obj_funs,#,
+                         #accumulate_gradient_iter=accumulate_gradient_iter,
+                         #accumulate_gradient_num=accumulate_gradient_num,
+                         update_objective_interval=update_objective_interval)
+                         #gamma=gamma)
 
 submission_callbacks = []
