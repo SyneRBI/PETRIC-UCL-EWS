@@ -22,7 +22,7 @@ class MaxIteration(callbacks.Callback):
 
 class Submission(BSREM):
     def __init__(self, data, 
-                       update_objective_interval: int = 1000000,
+                       update_objective_interval: int = 10,
                        **kwargs):
         
         if data.acquired_data.shape[0] == 1:

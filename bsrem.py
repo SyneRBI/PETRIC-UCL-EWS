@@ -110,7 +110,7 @@ class BSREM(BSREMSkeleton):
 
         # compute DOG learning rate 
         if self.iteration == 0:
-            step_size_estimate = min(max(2/(self.v_t.norm() + 1e-3), 0.05), 3.0)
+            step_size_estimate = min(max(1/(self.v_t.norm() + 1e-3), 0.05), 3.0)
             self.alpha = step_size_estimate
 
         distance = (self.x - self.initial).norm()
@@ -131,8 +131,8 @@ class BSREM(BSREMSkeleton):
     def objective_function(self, x):
         ''' value of objective function summed over all subsets '''
         v = 0
-        for s in range(len(self.data)):
-            v += self.obj_funs[s](x)
+        #for s in range(len(self.data)):
+        #    v += self.obj_funs[s](x)
         return v
 
     def subset_sensitivity(self, subset_num):
