@@ -35,9 +35,7 @@ class Submission(cursed_BSREM):
         accumulate_gradient_iter = kwargs.get("accumulate_gradient_iter", [10, 15, 20])
         accumulate_gradient_num = kwargs.get("accumulate_gradient_num", [1, 10, 20])
         update_rdp_diag_hess_iter = kwargs.get("update_rdp_diag_hess_iter", [10])
-
-        initial_step_size = kwargs.get("initial_step_size", 0.4)
-        relaxation_eta = kwargs.get("relaxation_eta", 0.01)
+        gamma = kwargs.get("gamma", 0.9)
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,
@@ -45,18 +43,10 @@ class Submission(cursed_BSREM):
                                                                     mode = mode)
         self.dataset = data
         # WARNING: modifies prior strength with 1/num_subsets (as currently needed for BSREM implementations)
-        # data.prior.set_penalisation_factor(data.prior.get_penalisation_factor() / len(obj_funs))
-        data.prior.set_up(data.OSEM_image)
-        my_prior = data.prior
-        img = data.OSEM_image
-        breakpoint()
-
         data.prior.set_penalisation_factor(data.prior.get_penalisation_factor() / len(obj_funs))
         data.prior.set_up(data.OSEM_image)
         for f in obj_funs: # add prior evenly to every objective function
             f.set_prior(data.prior)
-
-        breakpoint()
 
         super().__init__(data_sub, 
                          obj_funs,
@@ -65,6 +55,7 @@ class Submission(cursed_BSREM):
                          update_rdp_diag_hess_iter,
                          update_objective_interval=update_objective_interval,
                          initial_step_size=initial_step_size,
-                         relaxation_eta=relaxation_eta)
+                         relaxation_eta=relaxation_eta,
+                         gamma=gamma)
 
 submission_callbacks = []

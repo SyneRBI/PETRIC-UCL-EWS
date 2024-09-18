@@ -7,7 +7,6 @@
 #
 # Copyright 2024 University College London
 
-import numpy
 import numpy as np 
 import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
@@ -75,31 +74,56 @@ class BSREMSkeleton(Algorithm):
     def step_size(self):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
+    def relaxed_step_size(self, step_size):
+        return step_size / (1 + self.relaxation_eta * self.epoch())
+
     def update(self):
-        g = self.subset_gradient(self.x, self.subset_order[self.subset])
+        print("\n Iteration: ", self.iteration)
+        if self.iteration < 2:
+            print("Do a full gradient descent step")
+            for i in range(self.num_subsets):
+                if i == 0:
+                    self.g = self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
+                else:
+                    self.g += self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
+                self.subset = (self.subset + 1) % self.num_subsets
+            #print(f"\n Added subset {i+1} (i.e. {self.subset}) of {num_to_accumulate}\n")
+            self.g /= self.num_subsets
 
-        self.x_update = (self.x + self.eps) * g / self.average_sensitivity 
-
-        if self.iteration == 0:
-            self.alpha = self.initial_step_size
         else:
-            delta_x = self.x - self.x_prev
-            delta_g = self.x_update_prev - self.x_update 
+            print("SGD Gradient")
+            self.g = self.subset_gradient(self.x, self.subset_order[self.subset])
 
-            self.alpha = delta_x.norm()**2 / (delta_x * delta_g).sum()
+        self.x_update = (self.x + self.eps) * self.g / self.average_sensitivity 
 
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 
-        self.x_prev = self.x.clone() 
-        self.x_update_prev = self.x_update.clone() 
+        if self.iteration == 0:
+            self.alpha = self.initial_step_size
+        elif self.iteration == 1:
+            delta_x = self.x - self.x_prev
+            delta_g = self.x_update_prev - self.x_update
 
-        #print("Use step size: ", self.alpha)
-        #print(self.x_update)
+            self.alphabb = delta_x.norm()**2 / np.abs((delta_x * delta_g).sum())
+            self.alpha = self.alphabb
+
+            print("Computed BB step size: ", self.alphabb)
+
+        else:
+            self.alpha = self.relaxed_step_size(self.alphabb)
+
+        if self.iteration == 0:
+            self.x_prev = self.x.clone() 
+            self.x_update_prev = self.x_update.clone() 
+
         self.x += self.x_update * self.alpha
+
         # threshold to non-negative
         self.x.maximum(0, out=self.x)
-        self.subset = (self.subset + 1) % self.num_subsets
+
+        if self.iteration >= 2:
+            self.subset = (self.subset + 1) % self.num_subsets
 
     def update_objective(self):
         # required for current CIL (needs to set self.loss)

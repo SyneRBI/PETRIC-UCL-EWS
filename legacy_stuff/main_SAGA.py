@@ -8,18 +8,12 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 >>> algorithm.run(np.inf, callbacks=metrics + submission_callbacks)
 """
 from cil.optimisation.algorithms import Algorithm
-from cil.optimisation.utilities import callbacks, Preconditioner
-#from petric import Dataset
-
-from bsrem_bb import BSREM1
-
-
+from cil.optimisation.utilities import callbacks
+from petric import Dataset
+from SAGA import SAGA1
 from sirf.contrib.partitioner import partitioner
-import sirf.STIR as STIR
 
-import numpy as np 
-
-assert issubclass(BSREM1, Algorithm)
+assert issubclass(SAGA1, Algorithm)
 
 
 class MaxIteration(callbacks.Callback):
@@ -36,17 +30,15 @@ class MaxIteration(callbacks.Callback):
             raise StopIteration
 
 
-class Submission(BSREM1):
+class Submission(SAGA1):
     # note that `issubclass(BSREM1, Algorithm) == True`
-    def __init__(self, data, 
+    def __init__(self, data: Dataset, 
                        num_subsets: int = 7, 
                        update_objective_interval: int = 10,
-                       preconditioner = "osem",
                        **kwargs):
         """
         Initialisation function, setting up data & (hyper)parameters.
         NB: in practice, `num_subsets` should likely be determined from the data.
-        This is just an example. Try to modify and improve it!
         """
         mode = kwargs.get("mode", "sequential")
 
@@ -61,15 +53,13 @@ class Submission(BSREM1):
             f.set_prior(data.prior)
 
         initial_step_size = kwargs.get("initial_step_size", 0.3)
-        bb_init_mode = kwargs.get("bb_init_mode", "mean" )
-        beta = kwargs.get("beta", 0.6)
+        relaxation_eta = kwargs.get("relaxation_eta", 0.01)
 
         super().__init__(data_sub, 
                          obj_funs, 
                          initial=data.OSEM_image, 
                          initial_step_size=initial_step_size, 
-                         bb_init_mode=bb_init_mode,
-                         beta=beta,
+                         relaxation_eta=relaxation_eta,
                          update_objective_interval=update_objective_interval)
 
 

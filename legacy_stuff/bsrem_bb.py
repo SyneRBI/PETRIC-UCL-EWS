@@ -13,7 +13,7 @@ import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
 from cil.optimisation.algorithms import Algorithm 
-from herman_meyer import herman_meyer_order
+from utils.herman_meyer import herman_meyer_order
 import time 
 
 class BSREMSkeleton(Algorithm):
@@ -51,6 +51,9 @@ class BSREMSkeleton(Algorithm):
             self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
         # add a small number to avoid division by zero in the preconditioner
         self.average_sensitivity += self.average_sensitivity.max()/1e4
+
+        np.save("average_sens.npy", self.average_sensitivity.as_array())
+
         self.subset = 0
         self.update_filter = update_filter
         self.configured = True
@@ -65,6 +68,7 @@ class BSREMSkeleton(Algorithm):
         self.x_epoch_prev = None 
         
         self.g_minus1 = None
+
         self.g = initial.get_uniform_copy(0)  
 
         self.beta = beta #0.6 # / self.num_subsets
@@ -88,12 +92,13 @@ class BSREMSkeleton(Algorithm):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
-        #g = self.subset_gradient(self.x, self.subset_order[self.subset])
-        idx = np.random.randint(self.num_subsets)
-        g = self.subset_gradient(self.x, idx)
+        g = self.subset_gradient(self.x, self.subset_order[self.subset])
         
-        self.x_update = (self.x + self.eps) * g / self.average_sensitivity #* self.step_size()
+        self.x_update = (self.x + self.eps) * g / self.average_sensitivity 
         
+        
+
+
         #print(self.iteration, self.epoch())
 
         if (self.iteration + 1) % self.num_subsets == 0:
@@ -113,13 +118,19 @@ class BSREMSkeleton(Algorithm):
                 delta_x = self.x_epoch - self.x_epoch_prev
                 delta_g = self.g_minus1 - self.g 
 
-                self.alpha = 1. / self.num_subsets * delta_x.norm()**2 / np.abs((delta_x * delta_g).sum())
+                numerator = (delta_x * (self.x + self.eps)  / self.average_sensitivity * delta_x)
+                if self.update_filter is not None:
+                    self.update_filter.apply(self.numerator)
+                
+                self.alpha = 1. / self.num_subsets * numerator.sum() / np.abs((delta_x * delta_g).sum())
+                print("step size: ", self.alpha)
                 #self.alpha = np.clip(self.alpha, 0.1, 3.0)
                 k = self.epoch() 
-                phik = k  + 1
+                phik = 0.1 * (k  + 1)
                 self.c = self.c ** ((k-2)/(k-1)) * (self.alpha*phik) ** (1/(k-1))
                 self.alpha = self.c / phik
-        
+                self.alpha = np.clip(self.alpha, 0.05, 10)
+
         if (self.iteration + 1) % self.num_subsets == 0 or self.iteration == 0:
             
             self.g_minus1 = self.g.clone()
@@ -127,12 +138,14 @@ class BSREMSkeleton(Algorithm):
 
         if self.epoch() < 2:
             ## compute step size 
+            
+            """
             if self.x_prev is not None:
                 delta_x = self.x - self.x_prev
                 delta_g = self.x_update_prev - self.x_update 
 
-                alpha_long = delta_x.norm()**2 / (delta_x * delta_g).sum()
-                alpha_short = (delta_x * delta_g).sum() / delta_g.norm()**2 
+                alpha_long = delta_x.norm()**2 / np.abs((delta_x * delta_g).sum())
+                alpha_short = np.abs((delta_x * delta_g).sum()) / delta_g.norm()**2 
                 
                 if self.bb_init_mode == "long":
                     self.alpha = alpha_long
@@ -142,15 +155,16 @@ class BSREMSkeleton(Algorithm):
                     self.alpha = np.sqrt(alpha_long*alpha_short)
                 else:
                     raise NotImplementedError
-
+                print(alpha_short, alpha_long, self.alpha)
+            """
             self.x_prev = self.x.clone()
             self.x_update_prev = self.x_update.clone()
 
+            self.alpha = self.step_size()
 
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
         
-        #print("Use step size: ", self.alpha)
 
         self.g = self.beta * self.x_update + (1 - self.beta) * self.g
         self.x += self.x_update * self.alpha
@@ -186,7 +200,7 @@ class BSREM1(BSREMSkeleton):
         super().__init__(data, initial, initial_step_size, **kwargs)
 
     def subset_sensitivity(self, subset_num):
-        ''' Compute sensitivity for a particular subset'''
+        ''' Compute sensitiSvity for a particular subset'''
         self.obj_funs[subset_num].set_up(self.x)
         # note: sirf.STIR Poisson likelihood uses `get_subset_sensitivity(0) for the whole
         # sensitivity if there are no subsets in that likelihood

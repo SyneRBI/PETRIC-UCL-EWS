@@ -59,15 +59,27 @@ class BSREMSkeleton(Algorithm):
                  update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
         super().__init__(**kwargs)
         initial = self.dataset.OSEM_image
+        self.initial = initial.copy()
         self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
 
         self.g = initial.get_uniform_copy(0)
-        self.precond = initial.get_uniform_copy(0)
-        self.rdp_diag_hess_obj = RDPDiagHessTorch(self.dataset.OSEM_image.copy(), self.dataset.prior)
-        self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
-        self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
+        #self.precond = initial.get_uniform_copy(0)
+        #self.rdp_diag_hess_obj = RDPDiagHessTorch(self.dataset.OSEM_image.copy(), self.dataset.prior)
+        #self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
+        
+        #self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
+        #self.precond = (self.dataset.kappa.power(2) + self.rdp_diag_hess + self.dataset.prior.get_epsilon()).sqrt()
+
+        self.eps = initial.max()/1e3
+        self.average_sensitivity = initial.get_uniform_copy(0)
+        for s in range(len(data)):
+            self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
+        # add a small number to avoid division by zero in the preconditioner
+        self.average_sensitivity += self.average_sensitivity.max()/1e4
+
+
         self.x_update = initial.get_uniform_copy(0)
         self.subset = 0
         self.update_filter = update_filter
@@ -78,7 +90,7 @@ class BSREMSkeleton(Algorithm):
         print("Configured cursed_BSREM")
 
 class cursed_BSREM(BSREMSkeleton):
-    def __init__(self, data, obj_funs, accumulate_gradient_iter, accumulate_gradient_num, update_rdp_diag_hess_iter, initial_step_size, relaxation_eta,  **kwargs):
+    def __init__(self, data, obj_funs, accumulate_gradient_iter, accumulate_gradient_num, update_rdp_diag_hess_iter, initial_step_size, relaxation_eta, gamma, **kwargs):
         
         self.obj_funs = obj_funs
         
@@ -92,9 +104,13 @@ class cursed_BSREM(BSREMSkeleton):
         self.alpha = initial_step_size
 
         self.c = 1
-        self.gamma = 0.9
+        self.gamma = gamma
 
-        
+        # DOG parameters
+        self.max_distance = 0 
+        self.sum_gradient = 0    
+
+
         self.num_subsets_initial = len(data)
         #self.accumulate_gradient_iter = [10, 15, 20]
         # check list of accumulate_gradient_iter is monotonically increasing
@@ -134,12 +150,15 @@ class cursed_BSREM(BSREMSkeleton):
             self.subset = (self.subset + 1) % self.num_subsets
             #print(f"\n Added subset {i+1} (i.e. {self.subset}) of {num_to_accumulate}\n")
         self.g /= num_to_accumulate
-        if self.iteration in self.update_rdp_diag_hess_iter:
-            self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
-            self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
         
-        self.x_update = self.g / self.precond
-        
+        #if self.iteration in self.update_rdp_diag_hess_iter:
+        #    self.rdp_diag_hess = self.rdp_diag_hess_obj.compute(self.x)
+        #    #self.precond = self.dataset.kappa + self.rdp_diag_hess + self.dataset.prior.get_epsilon()
+        #    self.precond = (self.dataset.kappa.power(2) + self.rdp_diag_hess + self.dataset.prior.get_epsilon()).sqrt()
+        #self.x_update = self.g / self.precond
+        self.x_update = (self.x + self.eps) * self.g / self.average_sensitivity 
+
+
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 
@@ -148,16 +167,31 @@ class cursed_BSREM(BSREMSkeleton):
         else:
             self.v_t = self.gamma * self.v_t + (1 - self.gamma) * self.x_update
 
-        step_size_estimate = min(max(1/(self.v_t.norm() + 1e-5)**2, 0.05), 3.0)
+        # compute DOG learning rate 
 
-        k = self.iteration + 2
-        phik = (k + 1) # /self.num_subsets_initial
-        self.c = self.c ** ((k-2)/(k-1)) * (step_size_estimate*phik) ** (1/(k-1))
-        self.alpha = self.c / phik
+        if self.iteration == 0:
+            step_size_estimate = min(max(2/(self.v_t.norm() + 1e-4), 0.05), 3.0)
+            self.alpha = step_size_estimate
+        #    self.initial_step_size = step_size_estimate
+
+        distance = (self.x - self.initial).norm()
+        if distance > self.max_distance:
+            self.max_distance = distance 
+
+        self.sum_gradient += self.x_update.norm()**2
+
+        if self.iteration > 0:
+            self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
+
+            #print("distance: ", self.max_distance, " gradient sum: ", np.sqrt(self.sum_gradient), " => alpha = ", self.alpha)
+        #k = self.iteration + 2
+        #phik = (k + 1) # /self.num_subsets_initial
+        #self.c = self.c ** ((k-2)/(k-1)) * (step_size_estimate*phik) ** (1/(k-1))
+        #self.alpha = self.c / phik
         #print("1 / Norm of x_update: ", 1/self.x_update.norm(), " 1 / Norm of Gradient: ", 1/self.g.norm())
 
-        print("Step size: ", self.alpha, " estimate: ", step_size_estimate)
-
+        #print("Step size: ", self.alpha, " estimate: ", step_size_estimate)
+        #self.alpha = self.step_size()
         self.x += self.alpha * self.v_t
         self.x.maximum(0, out=self.x)
 
