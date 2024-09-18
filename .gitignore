@@ -19,7 +19,7 @@ __pycache__/
 
 model_weights/
 imgs/
-old/
+
 runs/
 runs2/
 forward_kernel/
