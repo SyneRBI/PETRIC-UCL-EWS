@@ -18,6 +18,7 @@ import sirf.STIR as STIR
 
 from cil.optimisation.algorithms import Algorithm 
 from utils.herman_meyer import herman_meyer_order
+from skimage.filters import unsharp_mask
 
 
 class SAGASkeleton(Algorithm):
@@ -42,6 +43,10 @@ class SAGASkeleton(Algorithm):
         '''
         super().__init__(**kwargs)
         initial = self.dataset.OSEM_image
+
+        #pred = unsharp_mask(initial.as_array(), radius=5, amount=1.2, channel_axis=0)
+        #initial.fill(pred)
+        
         self.initial = initial.copy()
         self.x = initial.copy()
         self.data = data
@@ -62,13 +67,12 @@ class SAGASkeleton(Algorithm):
         self.max_distance = 0 
         self.sum_gradient = 0    
 
-
         self.alpha = None 
 
         self.subset_order = herman_meyer_order(self.num_subsets)
 
         self.gm = [initial.get_uniform_copy(0) for _ in range(self.num_subsets)]
-
+        
         self.sum_gm = initial.get_uniform_copy(0)
 
     def subset_sensitivity(self, subset_num):
@@ -90,6 +94,7 @@ class SAGASkeleton(Algorithm):
         g = self.subset_gradient(self.x, subset_choice)
 
         if self.epoch() < 2:
+            
             x_update = (self.x + self.eps) * g / self.average_sensitivity 
             # SGD for two epochs 
             if self.iteration == 0:
@@ -104,7 +109,8 @@ class SAGASkeleton(Algorithm):
 
             if self.iteration > 0:
                 self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
-            self.x +=  self.alpha * x_update
+
+            self.x += self.alpha * x_update
             self.x.maximum(0, out=self.x)
 
         else:
@@ -123,6 +129,7 @@ class SAGASkeleton(Algorithm):
             
             if self.update_filter is not None:
                 self.update_filter.apply(x_update)
+            
             self.x += self.alpha * x_update
 
             # threshold to non-negative
