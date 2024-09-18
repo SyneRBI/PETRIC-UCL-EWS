@@ -18,7 +18,6 @@ import sirf.STIR as STIR
 
 from cil.optimisation.algorithms import Algorithm 
 from utils.herman_meyer import herman_meyer_order
-from skimage.filters import unsharp_mask
 
 
 class SAGASkeleton(Algorithm):
@@ -44,9 +43,6 @@ class SAGASkeleton(Algorithm):
         super().__init__(**kwargs)
         initial = self.dataset.OSEM_image
 
-        #pred = unsharp_mask(initial.as_array(), radius=5, amount=1.2, channel_axis=0)
-        #initial.fill(pred)
-        
         self.initial = initial.copy()
         self.x = initial.copy()
         self.data = data
