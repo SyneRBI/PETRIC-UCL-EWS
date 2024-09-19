@@ -288,7 +288,7 @@ class NetworkPreconditioner(torch.nn.Module):
 precond = NetworkPreconditioner(n_layers=4)
 precond = precond.to(device)
 
-optimizer = torch.optim.Adam(precond.parameters(), lr=2e-4)
+optimizer = torch.optim.Adam(precond.parameters(), lr=3e-4)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.95)
 print("Number of parameters: ", sum([p.numel() for p in precond.parameters()]))
 
@@ -320,7 +320,7 @@ for i in tqdm(range(2000)):
         full_loss += loss.item()
         loss.backward()
         
-        if i % 25 == 0:
+        if i % 250 == 0:
             print(evaluate_quality_metrics(x_reference.detach().cpu().squeeze().numpy(), 
                                         x_pred.detach().cpu().squeeze().numpy(),
                                         whole_object_mask_[j],
@@ -359,5 +359,8 @@ for i in tqdm(range(2000)):
     print(f"Iter {i}, Loss = {full_loss}, || lr = {lr_scheduler.get_last_lr()[0]}")
     optimizer.step()
     lr_scheduler.step()
-    if i % 50 == 0:
-        torch.save(precond.state_dict(), "fully3dmodel_v2/model.pt")
+
+    torch.save(precond.state_dict(), "checkpoint/model.pt")
+
+torch.save(precond.state_dict(), "checkpoint/model.pt")
+

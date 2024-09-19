@@ -30,18 +30,19 @@ class SAGASkeleton(Algorithm):
     Before adding this to the previous iterate, an update_filter can be applied.
 
     '''
-    def __init__(self, data,
+    def __init__(self, data, initial, average_sensitivity,
                  update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
         '''
         Arguments:
         ``data``: list of items as returned by `partitioner`
         ``initial``: initial estimate
-        ``initial_step_size``, ``relaxation_eta``: step-size constants
         ``update_filter`` is applied on the (additive) update term, i.e. before adding to the previous iterate.
         Set the filter to `None` if you don't want any.
         '''
         super().__init__(**kwargs)
-        initial = self.dataset.OSEM_image
+
+        if self.update_filter is not None:
+            self.update_filter.apply(initial)
 
         self.initial = initial.copy()
         self.x = initial.copy()
@@ -50,11 +51,8 @@ class SAGASkeleton(Algorithm):
         # compute small number to add to image in preconditioner
         # don't make it too small as otherwise the algorithm cannot recover from zeroes.
         self.eps = initial.max()/1e3
-        self.average_sensitivity = initial.get_uniform_copy(0)
-        for s in range(len(data)):
-            self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
-        # add a small number to avoid division by zero in the preconditioner
-        self.average_sensitivity += self.average_sensitivity.max()/1e4
+        self.average_sensitivity = average_sensitivity
+
         self.subset = 0
         self.update_filter = update_filter
         self.configured = True
@@ -80,18 +78,16 @@ class SAGASkeleton(Algorithm):
     def epoch(self):
         return self.iteration // self.num_subsets
 
-    def step_size(self):
-        return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
-
     def update(self):
 
         # construct gradient of subset 
         subset_choice = self.subset_order[self.subset]
         g = self.subset_gradient(self.x, subset_choice)
 
-        if self.epoch() < 2:
+        if self.epoch() < 3:
             
             x_update = (self.x + self.eps) * g / self.average_sensitivity 
+            #print(self.epoch(), self.iteration, x_update.norm())
             # SGD for two epochs 
             if self.iteration == 0:
                 step_size_estimate = min(max(1/(x_update.norm() + 1e-3), 0.05), 3.0)
@@ -105,24 +101,31 @@ class SAGASkeleton(Algorithm):
 
             if self.iteration > 0:
                 self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
+            
+            if self.update_filter is not None:
+                self.update_filter.apply(x_update)
 
+            print(self.epoch(), self.iteration, x_update.norm(), self.alpha)
             self.x += self.alpha * x_update
             self.x.maximum(0, out=self.x)
 
         else:
             # SAGA afterwards 
-
-            gradient = self.num_subsets * (g - self.gm[subset_choice]) + self.sum_gm
+            #gradient = self.num_subsets * (g - self.gm[subset_choice]) + self.sum_gm
+            
+            # SAGA gradient (scaled by num_subsets)
+            gradient = (g - self.gm[subset_choice]) + self.sum_gm / self.num_subsets
 
             distance = (self.x - self.initial).norm()
             if distance > self.max_distance:
                 self.max_distance = distance 
 
             x_update = (self.x + self.eps) * gradient / self.average_sensitivity 
-
             self.sum_gradient += x_update.norm()**2
             self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
             
+            print(self.epoch(), self.iteration, x_update.norm(), self.alpha)
+
             if self.update_filter is not None:
                 self.update_filter.apply(x_update)
             
@@ -131,11 +134,11 @@ class SAGASkeleton(Algorithm):
             # threshold to non-negative
             self.x.maximum(0, out=self.x)
 
-
         self.sum_gm = self.sum_gm - self.gm[subset_choice] + g
         self.gm[subset_choice] = g
 
         self.subset = (self.subset + 1) % self.num_subsets
+
 
     def update_objective(self):
         # required for current CIL (needs to set self.loss)
@@ -154,13 +157,13 @@ class SAGASkeleton(Algorithm):
 
 class SAGA(SAGASkeleton):
     ''' SAGA implementation using sirf.STIR objective functions'''
-    def __init__(self, data, obj_funs, **kwargs):
+    def __init__(self, data, obj_funs, initial, average_sensitivity, **kwargs):
         '''
-        construct Algorithm with lists of data and, objective functions, initial estimate, initial step size,
-        step-size relaxation (per epoch) and optionally Algorithm parameters
+        construct Algorithm with lists of data and, objective functions, initial estimate
+        and optionally Algorithm parameters
         '''
         self.obj_funs = obj_funs
-        super().__init__(data, **kwargs)
+        super().__init__(data, initial, average_sensitivity, **kwargs)
 
     def subset_sensitivity(self, subset_num):
         ''' Compute sensitivity for a particular subset'''
