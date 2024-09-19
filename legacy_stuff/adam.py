@@ -15,17 +15,13 @@ import time
 import numpy as np 
 
 class AdamSkeleton(Algorithm):
-    ''' Main implementation of a modified BSREM algorithm
+    ''' Main implementation of the ADAM algorithm.
 
-    This essentially implements constrained preconditioned gradient ascent
-    with an EM-type preconditioner.
-
-    In each update step, the gradient of a subset is computed, multiplied by a step_size and a EM-type preconditioner.
-    Before adding this to the previous iterate, an update_filter can be applied.
+    
 
     Step-size uses relaxation: ``initial_step_size`` / (1 + ``relaxation_eta`` * ``epoch()``)
     '''
-    def __init__(self, data, initial, initial_step_size, relaxation_eta,
+    def __init__(self, data, initial, relaxation_eta,
                  update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
         '''
         Arguments:
@@ -39,24 +35,18 @@ class AdamSkeleton(Algorithm):
         self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
-        self.initial_step_size = initial_step_size
         self.relaxation_eta = relaxation_eta
-        # compute small number to add to image in preconditioner
-        # don't make it too small as otherwise the algorithm cannot recover from zeroes.
-        self.eps = initial.max()/1e3
-        self.average_sensitivity = initial.get_uniform_copy(0)
-        for s in range(len(data)):
-            self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
-        # add a small number to avoid division by zero in the preconditioner
-        self.average_sensitivity += self.average_sensitivity.max()/1e4
+
         self.subset = 0
         self.update_filter = update_filter
         self.configured = True
 
         self.alpha = 1e-3
         self.beta1 = 0.9
-        self.beta2 = 0.999
+        self.beta2 = 0.99
         self.eps_adam = 1e-8 
+
+        self.initial_step_size = None 
 
         self.m = initial.get_uniform_copy(0) 
         self.m_hat = initial.get_uniform_copy(0) 
@@ -79,7 +69,6 @@ class AdamSkeleton(Algorithm):
 
     def update(self):
         g = self.subset_gradient(self.x, self.subset_order[self.subset])
-        #g = (self.x + self.eps) * g / self.average_sensitivity
 
         self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
         g.power(2, out=g)
@@ -88,18 +77,23 @@ class AdamSkeleton(Algorithm):
         self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.iteration+1))
         self.v_hat.sqrt(out=self.v_hat)
         
-        self.x_update = self.step_size() * self.m_hat / (self.v_hat + self.eps_adam)
+        self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
 
+        if self.iteration == 0:
+            self.initial_step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+            print("Choose step size as: ", self.initial_step_size)
+
+        step_size = self.step_size()
+        print("alpha = ", step_size)
         
-        self.x += ((self.x * self.eps)/self.average_sensitivity).power(0.5) * self.x_update
+        self.x += step_size * self.x_update
         # threshold to non-negative
         
         self.x.maximum(0, out=self.x)
         self.subset = (self.subset + 1) % self.num_subsets
 
-        #self.alpha = self.alpha * 0.98
 
     def update_objective(self):
         # required for current CIL (needs to set self.loss)
@@ -118,13 +112,13 @@ class AdamSkeleton(Algorithm):
 
 class Adam(AdamSkeleton):
     ''' ADAM implementation using sirf.STIR objective functions'''
-    def __init__(self, data, obj_funs, initial, initial_step_size=1, relaxation_eta=0, **kwargs):
+    def __init__(self, data, obj_funs, initial, relaxation_eta=0, **kwargs):
         '''
         construct Algorithm with lists of data and, objective functions, initial estimate, initial step size,
         step-size relaxation (per epoch) and optionally Algorithm parameters
         '''
         self.obj_funs = obj_funs
-        super().__init__(data, initial, initial_step_size, relaxation_eta, **kwargs)
+        super().__init__(data, initial, relaxation_eta, **kwargs)
 
     def subset_sensitivity(self, subset_num):
         ''' Compute sensitivity for a particular subset'''
