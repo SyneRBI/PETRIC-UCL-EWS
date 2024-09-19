@@ -33,10 +33,10 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks as cil_callbacks
 #from img_quality_cil_stir import ImageQualityCallback
 
-import torch 
-torch.cuda.set_per_process_memory_fraction(0.8)
+#import torch 
+#torch.cuda.set_per_process_memory_fraction(0.8)
 
-method = "cursed_bsrem"
+method = "bsrem"
 
 if method == "ews":
     from main_EWS import Submission, submission_callbacks
@@ -64,42 +64,17 @@ elif method == "osem":
         #"mode": "staggered"
     }
 elif method == "bsrem":
-    from main_BSREM import Submission, submission_callbacks
-
+    from main import Submission, submission_callbacks
     submission_args = {
         "method": "bsrem",
-        "initial_step_size": 0.8, 
-        "relaxation_eta": 0.01,
-        #"num_subsets": 2, 
-        "mode": "staggered",
-        "preconditioner" : None 
-    }
-elif method == "bsrem_bb":
-    from main_BSREMbb import Submission, submission_callbacks
-
-    submission_args = {
-        "method": "bsrem_bb",
-        "initial_step_size": 0.9, 
-#        "num_subsets": 3, 
-        "mode": "staggered",
-        "beta": 0.75,
-        "bb_init_mode" : "mean" # "short" "mean" "long"
-    }
-elif method == "cursed_bsrem":
-    from main_cursed_BSREM import Submission, submission_callbacks
-    submission_args = {
-        "method": "cursed_bsrem",
-        "mode": "staggered",
-        "accumulate_gradient_iter": [2, 4, 8, 16, 32],
+        "accumulate_gradient_iter": [6, 10, 14, 18, 32],
         "accumulate_gradient_num": [1, 2, 4, 8, 16],
-        "update_rdp_diag_hess_iter": [i+4 for i in range(100)][:2],
-        "initial_step_size": 0.4, 
-        "relaxation_eta": 0.001,
+        "gamma": 0.9, #0.9, 
     }
 else:
     raise NotImplementedError
 
-OUTDIR = Path("runs/" + method + "/" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path("logs/" + method + "/" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 
 assert issubclass(Submission, Algorithm)
 
@@ -309,18 +284,21 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 
 # create list of existing data
 # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-data_dirs_metrics = [                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
+data_dirs_metrics = [ (SRCDIR / "Siemens_mMR_NEMA_IQ", 
                       OUTDIR / "mMR_NEMA",
-                      [MetricsWithTimeout(seconds=20)]),  
-    (SRCDIR / "Siemens_Vision600_thorax",
+                      [MetricsWithTimeout(seconds=700)]), 
+                      (SRCDIR / "Mediso_NEMA_IQ", 
+                      OUTDIR / "Mediso_NEMA",
+                      [MetricsWithTimeout(seconds=700)]), 
+                    (SRCDIR / "Siemens_Vision600_thorax",
                       OUTDIR / "Vision600_thorax",
-                     [MetricsWithTimeout(seconds=900)]),
+                     [MetricsWithTimeout(seconds=700)]),
                      (SRCDIR / "Siemens_mMR_ACR",
                       OUTDIR / "Siemens_mMR_ACR",
-                     [MetricsWithTimeout(seconds=900)]),
+                     [MetricsWithTimeout(seconds=700)]),
                       (SRCDIR / "NeuroLF_Hoffman_Dataset",
                       OUTDIR / "NeuroLF_Hoffman",
-                     [MetricsWithTimeout(seconds=900)])
+                     [MetricsWithTimeout(seconds=700)])
                      ]
 
 
