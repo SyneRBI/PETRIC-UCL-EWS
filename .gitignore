@@ -27,3 +27,4 @@ postprocessing_unet/
 
 training_data/
 logs/
+model/
