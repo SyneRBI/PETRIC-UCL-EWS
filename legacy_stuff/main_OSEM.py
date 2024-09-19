@@ -13,6 +13,7 @@ from cil.optimisation.utilities import callbacks
 from sirf.contrib.partitioner.partitioner import partition_indices
 
 from utils.number_of_subsets import compute_number_of_subsets
+from utils.herman_meyer import herman_meyer_order
 
 class MaxIteration(callbacks.Callback):
     """
@@ -61,6 +62,7 @@ class Submission(Algorithm):
         self.alpha = 1.0
         partitions_idxs = partition_indices(num_subsets, list(range(views)), stagger=True)
 
+        self.subset_order = herman_meyer_order(num_subsets)
         # for each subset: find data, create acq_model, and create subset_sensitivity (backproj of 1)
         for i in range(num_subsets):
             prompts_subset = data.acquired_data.get_subset(partitions_idxs[i])
@@ -86,12 +88,12 @@ class Submission(Algorithm):
         # compute forward projection for the denomintor
         # add a small number to avoid NaN in division, as OSEM lead to 0/0 or worse.
         # (Theoretically, MLEM cannot, but it might nevertheless due to numerical issues)
-        denom = self.acquisition_models[self.subset].forward(self.x) + .0001
+        denom = self.acquisition_models[self.subset_order[self.subset]].forward(self.x) + .0001
         # divide measured data by estimate (ignoring mult_factors!)
-        quotient = self.prompts[self.subset] / denom
+        quotient = self.prompts[self.subset_order[self.subset]] / denom
 
         # update image with quotient of the backprojection (without mult_factors!) and the sensitivity
-        self.x *= self.acquisition_models[self.subset].backward(quotient) / self.sensitivities[self.subset]
+        self.x *= self.acquisition_models[self.subset_order[self.subset]].backward(quotient) / self.sensitivities[self.subset_order[self.subset]]
         self.subset = (self.subset + 1) % len(self.prompts)
 
     def update_objective(self):

@@ -9,7 +9,7 @@ import sirf.STIR as STIR
 from sirf.contrib.partitioner import partitioner
 
 
-datasets = ["NeuroLF_Hoffman_Dataset", "Siemens_mMR_NEMA_IQ", "Siemens_Vision600_thorax"]
+datasets = ["Siemens_mMR_ACR", "NeuroLF_Hoffman_Dataset", "Siemens_mMR_NEMA_IQ", "Siemens_Vision600_thorax"]
 
 outdir = "timing"
 
@@ -32,7 +32,8 @@ for dataset in datasets:
 
     print("OSEM: ", OSEM_image.shape)
     print("acquired_data: ", acquired_data.shape)
-
+    breakpoint
+    """
     n_subs = [1, 2, 4, 8, 16, 32, 64]
     ave_forward = []
     ave_backward = []
@@ -64,4 +65,4 @@ for dataset in datasets:
         ave_backward.append(n_sub*(time.time() - t1)/num_tries)
         print("ADJOINT for {} sub is: {}".format(n_sub, ave_backward[-1]))
 
-
+    """
