@@ -24,3 +24,6 @@ runs/
 runs2/
 forward_kernel/
 postprocessing_unet/
+
+training_data/
+logs/
