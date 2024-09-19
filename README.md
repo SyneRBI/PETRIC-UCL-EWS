@@ -25,22 +25,31 @@ git tag -a <tagname> -m '<message>'
 git push origin --tags
 ```
 
+## Approaches
+To compute the number of subsets we use the functions in **utils/number_of_subsets.py**. This is a set of heuristic rules: 1) number of subsets has to be divisible by the number of views, 2) the number of subsets should have many prime factors (this results in a good herman meyer order), 3) I want at least 8 views in each subset and 4) I want at least 5 subsets. The function in **utils/number_of_subsets.py** is probably not really efficient. 
 
-## Branches
-- Algo1, BSREM with Barzilai-Borwein step size
-- Algo2, BSREM with cursed preconditioner
-- Algo3, Adam
+For TOF flight data, we do not use rule 3) and 4). If several number of subsets have the same number of prime factors, we take the larger number of subsets. 
 
-## Implemented Approaches
-
-### 1) Educated Warm Start
-
-To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation should reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. As the feed-forward pass of a neural network is typically quite fast, the calculation of the initial image should only come with a small increase of computation time. Hopefully, this increase of computation is less than the saved time due to less iterations. 
+All in all, this results in: 50 views (TOF) -> 25 subsets, 128 views -> 16 subsets and 252 views -> 28 views.
 
 
-### 2) Adam (adaptive moment estimation)
+### 1) Educated Warm Start (main_EWS_SAGA.py)
 
-Adam is a popular first order stochastic optimisation algorithm heavily used in deep learning. Maybe Adam can also speed up convergence in PET? Here, we just implement the [Adam algorithm](https://arxiv.org/abs/1412.6980).
+To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. 
+
+We start with a few epochs of SGD and then move to SAGA. We use the BSREM preconditioner. 
+
+
+### 2) Adam-SAGA (adaptive moment estimation)
+
+Adam is a popular first order stochastic optimisation algorithm heavily used in deep learning. Here, we combine ADAM with the gradient averaging from SAGA. 
+
+We start with a few epochs of SGD and then move to SAGA. 
+
+
+### 3) Full Gradient Descent (main_Full_Gradient.py)
+
+As a final submission, we do not make use of subsets at all. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. Nonetheless, in our experiments we found that compared quite favourably to some other stochastic methods. Here, we use the Barzilai-Borwein step size rule. We use the BSREM preconditioner.
 
 
 ### Setup on Hydra
