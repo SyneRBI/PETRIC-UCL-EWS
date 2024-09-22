@@ -121,14 +121,14 @@ def divisorGenerator(n):
 
 if __name__ == "__main__":
 
-    #for num in [50, 252, 128, 34, 645, 646]:
-    #    print("Test for ", num, " -> ", compute_number_of_subsets(num), " subsets")
+    for num in [50, 252, 128]:
+        print("Test for ", num, " -> ", compute_number_of_subsets(num, tof=False), " subsets")
 
-    #for num in [50, 252, 128, 34, 645, 646]:
-    #    print("Test TOF for ", num, " -> ", compute_number_of_subsets_tof(num), " subsets")
+    for num in [50, 252, 128]:
+        print("Test TOF for ", num, " -> ", compute_number_of_subsets(num, tof=True), " subsets")
 
-    for num in range(40, 400):
-        print(num, compute_number_of_subsets(num, tof=True))
+    #for num in range(40, 400):
+    #    print(num, compute_number_of_subsets(num, tof=True))
 
     """
 
