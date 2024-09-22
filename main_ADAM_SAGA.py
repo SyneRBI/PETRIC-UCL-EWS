@@ -9,9 +9,12 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 """
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
-from sirf.contrib.partitioner import partitioner
+#from sirf.contrib.partitioner import partitioner
+from utils.partioner_function_no_obj import data_partition
 
-from adam_saga import Adam
+#from adam_saga import Adam
+from adam import Adam
+
 from utils.number_of_subsets import compute_number_of_subsets
 
 assert issubclass(Adam, Algorithm)
@@ -35,7 +38,6 @@ class Submission(Adam):
                  update_objective_interval: int = 10,
                  **kwargs):
 
-
         tof = (data.acquired_data.shape[0] > 1)
         views = data.acquired_data.shape[2]
         num_subsets = compute_number_of_subsets(views, tof)
@@ -49,10 +51,8 @@ class Submission(Adam):
         for f in obj_funs: # add prior evenly to every objective function
             f.set_prior(data.prior)
 
-        relaxation_eta = kwargs.get("relaxation_eta", 0.02)
-
-        super().__init__(data_sub, 
-                         obj_funs, 
+        super().__init__(data=data_sub, 
+                         obj_funs=obj_funs,
                          initial=data.OSEM_image, 
                          relaxation_eta=relaxation_eta,
                          update_objective_interval=update_objective_interval)

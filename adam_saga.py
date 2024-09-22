@@ -44,7 +44,7 @@ class AdamSkeleton(Algorithm):
         self.alpha = 1e-3
         self.beta1 = 0.9
         self.beta2 = 0.99
-        self.eps_adam = 1e-8 
+        self.eps_adam = 1e-7
 
         self.initial_step_size = None 
 
@@ -60,6 +60,7 @@ class AdamSkeleton(Algorithm):
         self.sum_gm = initial.get_uniform_copy(0)
 
         self.g_sq = initial.get_uniform_copy(0)
+        self.x_update = initial.get_uniform_copy(0)
 
         self.init_adam = False
 
@@ -81,28 +82,36 @@ class AdamSkeleton(Algorithm):
 
         if self.epoch() < 5: 
             #print(self.epoch(), " Gradient norm: ", g.norm())
-            self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
+            
+            self.m.sapyb(self.beta1,g, (1 - self.beta1), out=self.m)
+            #self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
 
             g.power(2, out=self.g_sq)
-            self.v = self.beta2 * self.v + (1 - self.beta2) * self.g_sq
+            self.v.sapyb(self.beta2, self.g_sq, (1 - self.beta2), out=self.v)
+            #self.v = self.beta2 * self.v + (1 - self.beta2) * self.g_sq
 
-            self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.iteration+1))
-            self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.iteration+1))
+            self.m.divide(1 - self.beta1 ** (self.iteration+1), out=self.m_hat)
+            #self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.saga_iteration+1))
+            
+            self.v.divide(1 - self.beta2 ** (self.iteration+1), out=self.v_hat)
+            #self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.saga_iteration+1))
             self.v_hat.sqrt(out=self.v_hat)
             
-            self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
+            self.m_hat.divide(self.v_hat + self.eps_adam,out=self.x_update)
+            #self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
             if self.update_filter is not None:
                 self.update_filter.apply(self.x_update)
 
             if self.iteration == 0:
-                self.initial_step_size = 5/(self.x_update.norm() + 1e-3) #min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+                self.initial_step_size = 2/(self.x_update.norm() + 1e-3) #min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
                 #print("Choose step size as: ", self.initial_step_size)
-                print("update norm: ", 5/(self.x_update.norm() + 1e-3))
+                print("update norm: ", 2/(self.x_update.norm() + 1e-3))
 
             step_size = self.step_size()
             #print("alpha = ", step_size)
             
-            self.x += step_size * self.x_update
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+            #self.x += step_size * self.x_update
             # threshold to non-negative
         
         else:
@@ -119,36 +128,43 @@ class AdamSkeleton(Algorithm):
             #print(self.epoch(), " Gradient norm: ", gradient.norm())
             #print("parts of gradient: ", self.epoch(), g.norm(), self.gm[subset_choice].norm(), (self.sum_gm / self.num_subsets).norm())
 
-            self.m.fill(self.beta1 * self.m + (1 - self.beta1) * gradient)
+            self.m.sapyb(self.beta1, gradient, (1 - self.beta1), out=self.m)
+            #self.m.fill(self.beta1 * self.m + (1 - self.beta1) * gradient)
             gradient.power(2, out=gradient)
-            self.v = self.beta2 * self.v + (1 - self.beta2) * gradient
-            self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.saga_iteration+1))
-            self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.saga_iteration+1))
+            
+            self.v.sapyb(self.beta2, gradient, (1 - self.beta2), out=self.v)
+            #self.v = self.beta2 * self.v + (1 - self.beta2) * gradient
+
+            self.m.divide(1 - self.beta1 ** (self.saga_iteration+1), out=self.m_hat)
+            #self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.saga_iteration+1))
+            
+            self.v.divide(1 - self.beta2 ** (self.saga_iteration+1), out=self.v_hat)
+            #self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.saga_iteration+1))
             self.v_hat.sqrt(out=self.v_hat)
             
-            self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
+            self.m_hat.divide(self.v_hat + self.eps_adam,out=self.x_update)
+            #self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
             if self.update_filter is not None:
                 self.update_filter.apply(self.x_update)
 
             if self.saga_iteration == 0:
-                self.initial_step_size = 5/(self.x_update.norm() + 1e-3) # min(max(1/(self.x_update.norm() + 1e-3), 0.005), 3.0)
+                self.initial_step_size = 2/(self.x_update.norm() + 1e-3) # min(max(1/(self.x_update.norm() + 1e-3), 0.005), 3.0)
                 print("Choose step size as: ", self.initial_step_size)
-                print("update norm: ", 5/(self.x_update.norm() + 1e-3))
+                print("update norm: ", 2/(self.x_update.norm() + 1e-3))
 
             step_size = self.step_size()
             #print("alpha = ", step_size)
             
-            self.x += step_size * self.x_update
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+            #self.x += step_size * self.x_update
             # threshold to non-negative
             self.saga_iteration += 1 
 
 
-        if self.epoch() >= 3:
+        if self.epoch() >= 4:
             self.sum_gm = self.sum_gm - self.gm[subset_choice] + g
 
             self.gm[subset_choice] = g
-
-
 
         self.x.maximum(0, out=self.x)
         self.subset = (self.subset + 1) % self.num_subsets
