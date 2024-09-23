@@ -14,6 +14,7 @@ Usage:
 Options:
   --log LEVEL  : Set logging level (DEBUG, [default: INFO], WARNING, ERROR, CRITICAL)
 """
+
 import csv
 import logging
 import os
@@ -21,6 +22,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import time
 from traceback import print_exc
+
+import torch 
+torch.cuda.set_per_process_memory_fraction(0.6)
 
 import numpy as np
 from skimage.metrics import mean_squared_error as mse
@@ -33,13 +37,12 @@ from img_quality_cil_stir import ImageQualityCallback
 
 from datetime import datetime
 
-#import torch 
-#torch.cuda.set_per_process_memory_fraction(0.6)
+
 
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "ADAM_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -247,14 +250,16 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 if SRCDIR.is_dir():
     # create list of existing data
     # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-    data_dirs_metrics = [(SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman",
-                          [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman", transverse_slice=72)]),
-                          (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "mMR_NEMA",
+    data_dirs_metrics = [   (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "mMR_NEMA",
                           [MetricsWithTimeout(outdir=OUTDIR / "mMR_NEMA", transverse_slice=72, coronal_slice=109)]),
-                         (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
-                          [MetricsWithTimeout(outdir=OUTDIR / "Vision600_thorax")]),
+                            (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman",
+                          [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman", transverse_slice=72)]),
                           (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA",
                             [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA")]),
+                         (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
+                          [MetricsWithTimeout(outdir=OUTDIR / "Vision600_thorax")]),
+                        (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", OUTDIR / "mMR_NEMA_lowcounts",
+                          [MetricsWithTimeout(outdir=OUTDIR / "mMR_NEMA_lowcounts")]),
                         (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR",
                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_ACR")])]
  
@@ -276,7 +281,7 @@ else:
     from docopt import docopt
     args = docopt(__doc__)
     logging.basicConfig(level=getattr(logging, args["--log"].upper()))
-    from main_ADAM import Submission, submission_callbacks
+    from main_ADAM_SAGA import Submission, submission_callbacks
     assert issubclass(Submission, Algorithm)
     for srcdir, outdir, metrics in data_dirs_metrics:
         data = get_data(srcdir=srcdir, outdir=outdir)

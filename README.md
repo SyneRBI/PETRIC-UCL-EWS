@@ -35,7 +35,7 @@ All in all, this results in: 50 views (TOF) -> 25 subsets, 128 views -> 16 subse
 
 ### 1) Educated Warm Start (main_EWS_SAGA.py)
 
-To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. It takes as input the OSEM image, the (preconditioned) gradient of the likelihood and the (preconditioned) gradient of the prior. As the preconditioner we use the usuall choice taken in BSREM.  
+To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. It takes as input the OSEM image, the (preconditioned) gradient of the likelihood and the (preconditioned) gradient of the prior. As the preconditioner we use the usuall choice taken in BSREM.  The network weights are available [HERE](https://drive.google.com/file/d/1RcuP74EVpmqXB2UGXJRuEKcv-Fpv6jWd/view?usp=sharing), please download and put in a folder **checkpoint/** in this repo. (TODO: write automatic download script)
 
 This has the obvious disadavantage that the could also do one epoch of SGD for the same cost. Maybe one epoch is SGD would actually result in a better initial value? I dont know. One could try a version only relying on the initial OSEM image. 
 

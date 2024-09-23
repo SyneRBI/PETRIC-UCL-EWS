@@ -9,8 +9,8 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 """
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
-#from sirf.contrib.partitioner import partitioner
-from utils.partioner_function_no_obj import data_partition
+from sirf.contrib.partitioner import partitioner
+#from utils.partioner_function_no_obj import data_partition
 
 #from adam_saga import Adam
 from adam import Adam
@@ -50,7 +50,8 @@ class Submission(Adam):
         data.prior.set_up(data.OSEM_image)
         for f in obj_funs: # add prior evenly to every objective function
             f.set_prior(data.prior)
-
+        
+        relaxation_eta = 0.02 
         super().__init__(data=data_sub, 
                          obj_funs=obj_funs,
                          initial=data.OSEM_image, 

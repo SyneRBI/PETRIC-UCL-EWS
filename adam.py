@@ -32,6 +32,7 @@ class AdamSkeleton(Algorithm):
         Set the filter to `None` if you don't want any.
         '''
         super().__init__(**kwargs)
+        self.initial = initial.copy()
         self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
@@ -58,6 +59,10 @@ class AdamSkeleton(Algorithm):
 
         self.g_sq = initial.get_uniform_copy(0)
         self.x_update = initial.get_uniform_copy(0)
+
+        # DOG parameters
+        self.max_distance = 0 
+        self.sum_gradient = 0  
 
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
@@ -97,12 +102,22 @@ class AdamSkeleton(Algorithm):
             self.update_filter.apply(self.x_update)
 
         if self.iteration == 0:
-            self.initial_step_size = 4/(self.x_update.norm() + 1e-3) #min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+            #self.initial_step_size = 4/(self.x_update.norm() + 1e-3) #min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+            step_size = 4/(self.x_update.norm() + 1e-3) #min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
             #print("Choose step size as: ", self.initial_step_size)
             print("update norm: ", 4/(self.x_update.norm() + 1e-3))
 
-        step_size = self.step_size()
-        #print("alpha = ", step_size)
+        distance = (self.x - self.initial).norm()
+        if distance > self.max_distance:
+            self.max_distance = distance 
+
+        self.sum_gradient += self.x_update.norm()**2
+
+        if self.iteration > 0:
+            step_size = 1.25 * self.max_distance / np.sqrt(self.sum_gradient)
+
+        #step_size = self.step_size()
+        print("step size = ", step_size)
         
         self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
         #self.x += step_size * self.x_update
