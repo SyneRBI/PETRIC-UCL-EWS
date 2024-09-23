@@ -45,7 +45,7 @@ $$\lambda_k = \frac{\max_{i < k} \| x_i - x_\text{init} \|_2}{ \sqrt{\sum_{i < k
 
 where $\Delta x_i$ is the full update, i.e., the preconditioned gradient, as iteration $i$. This deviates from the original DOP paper as they only have no preconditioner and use the sum of gradients in the denominator. 
 
-### 2) Adam-SAGA (adaptive moment estimation)
+### 2) Adam-SAGA (adaptive moment estimation, main_ADAM_SAGA.py)
 
 Adam is a popular first order stochastic optimisation algorithm heavily used in deep learning. Here, we combine ADAM with the gradient averaging from SAGA. 
 
