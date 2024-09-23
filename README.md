@@ -35,10 +35,15 @@ All in all, this results in: 50 views (TOF) -> 25 subsets, 128 views -> 16 subse
 
 ### 1) Educated Warm Start (main_EWS_SAGA.py)
 
-To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. 
+To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. It takes as input the OSEM image, the (preconditioned) gradient of the likelihood and the (preconditioned) gradient of the prior. As the preconditioner we use the usuall choice taken in BSREM.  
 
-We start with a few epochs of SGD and then move to SAGA. We use the BSREM preconditioner. 
+This has the obvious disadavantage that the could also do one epoch of SGD for the same cost. Maybe one epoch is SGD would actually result in a better initial value? I dont know. One could try a version only relying on the initial OSEM image. 
 
+We start with a few epochs of SGD and then move to SAGA. We use the BSREM preconditioner. We make use of [DOG](https://arxiv.org/abs/2302.12022) for a parameter-free adaptive step size rule. Here, the step size is given by 
+
+$$\lambda_k = \frac{\max_{i < k} \| x_i - x_\text{init} \|_2}{ \sqrt{\sum_{i < k} \Delta x_i^2}} $$
+
+where $\Delta x_i$ is the full update, i.e., the preconditioned gradient, as iteration $i$. This deviates from the original DOP paper as they only have no preconditioner and use the sum of gradients in the denominator. 
 
 ### 2) Adam-SAGA (adaptive moment estimation)
 
