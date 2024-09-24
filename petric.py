@@ -42,7 +42,7 @@ from datetime import datetime
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "ADAM_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "full_gradient_rdp_diag_or_em" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -150,8 +150,9 @@ class QualityMetrics(ImageQualityCallback, Callback):
 
 class MetricsWithTimeout(cil_callbacks.Callback):
     """Stops the algorithm after `seconds`"""
-    def __init__(self, seconds=600, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, **kwargs): 
+    def __init__(self, seconds=300, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, **kwargs): 
         super().__init__(**kwargs)
+        print("outdir: ", outdir)
         self._seconds = seconds
         self.callbacks = [
             cil_callbacks.ProgressCallback(),
@@ -242,7 +243,6 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
     voi_masks = {
         voi.stem[4:]: STIR.ImageData(str(voi))
         for voi in (srcdir / 'PETRIC').glob("VOI_*.hv") if voi.stem[4:] not in ('background', 'whole_object')}
-
     return Dataset(acquired_data, additive_term, mult_factors, OSEM_image, prior, kappa, reference_image,
                    whole_object_mask, background_mask, voi_masks)
 
@@ -250,18 +250,25 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 if SRCDIR.is_dir():
     # create list of existing data
     # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-    data_dirs_metrics = [   (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "mMR_NEMA",
-                          [MetricsWithTimeout(outdir=OUTDIR / "mMR_NEMA", transverse_slice=72, coronal_slice=109)]),
-                            (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman",
-                          [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman", transverse_slice=72)]),
-                          (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA",
-                            [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA")]),
-                         (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax",
-                          [MetricsWithTimeout(outdir=OUTDIR / "Vision600_thorax")]),
-                        (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", OUTDIR / "mMR_NEMA_lowcounts",
-                          [MetricsWithTimeout(outdir=OUTDIR / "mMR_NEMA_lowcounts")]),
-                        (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR",
-                     [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_ACR")])]
+    data_dirs_metrics = [(SRCDIR / "Mediso_NEMA_IQ", 
+                      OUTDIR / "Mediso_NEMA",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Mediso_NEMA")]), 
+                    (SRCDIR / "NeuroLF_Hoffman_Dataset",
+                      OUTDIR / "NeuroLF_Hoffman",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "NeuroLF_Hoffman")]),
+                    (SRCDIR / "Siemens_mMR_ACR",
+                      OUTDIR / "Siemens_ACR",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_ACR")]),
+                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
+                      OUTDIR / "Siemens_NEMA",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_NEMA")]), 
+                    (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", 
+                      OUTDIR / "Siemens_NEMA_lowcounts",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_NEMA_lowcounts")]),  
+                    (SRCDIR / "Siemens_Vision600_thorax",
+                      OUTDIR / "Vision600_thorax",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Vision600_thorax")]),
+                     ]
  
 
 
@@ -269,19 +276,11 @@ else:
     log.warning("Source directory does not exist: %s", SRCDIR)
     data_dirs_metrics = [(None, None, [])] # type: ignore
 
-if __name__ != "__main__":
-    # load up first data-set for people to play with
-    srcdir, outdir, metrics = data_dirs_metrics[0]
-    if srcdir is None:
-        data = None
-    else:
-        data = get_data(srcdir=srcdir, outdir=outdir)
-        metrics[0].reset()
-else:
+if __name__ == "__main__":
     from docopt import docopt
     args = docopt(__doc__)
     logging.basicConfig(level=getattr(logging, args["--log"].upper()))
-    from main_ADAM_SAGA import Submission, submission_callbacks
+    from main_Full_Gradient import Submission, submission_callbacks
     assert issubclass(Submission, Algorithm)
     for srcdir, outdir, metrics in data_dirs_metrics:
         data = get_data(srcdir=srcdir, outdir=outdir)

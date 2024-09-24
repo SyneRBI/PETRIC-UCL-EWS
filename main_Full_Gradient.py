@@ -10,7 +10,7 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 
-#from sirf.contrib.partitioner import partitioner
+from sirf.contrib.partitioner import partitioner
 
 from bsrem_bb import BSREM
 
@@ -32,7 +32,7 @@ class MaxIteration(callbacks.Callback):
 
 class Submission(BSREM):
     def __init__(self, data, 
-                 update_objective_interval: int = 10,
+                 update_objective_interval: int = 1,
                  **kwargs):
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
@@ -43,7 +43,7 @@ class Submission(BSREM):
         data.prior.set_up(data.OSEM_image)
         for f in obj_funs: # add prior evenly to every objective function
             f.set_prior(data.prior)
-
+        self.dataset = data
 
         super().__init__(data_sub, 
                          obj_funs, 
