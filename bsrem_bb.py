@@ -122,16 +122,14 @@ class BSREMSkeleton(Algorithm):
             prior_grad = self.dataset.prior.gradient(self.x)
             lhkd_grad = g - prior_grad
             if prior_grad.norm()/g.norm() > 0.5:
-                
                 self.rdp_diag_hess_obj = RDPDiagHessTorch(self.dataset.OSEM_image.copy(), self.dataset.prior)
                 self.lkhd_precond = self.dataset.kappa.power(2)
                 self.compute_rdp_diag_hess = True
                 self.eps = self.lkhd_precond.max()/1e4
             else:
                 self.compute_rdp_diag_hess = False
-                self.eps = self.average_sensitivity.max()/1e4
+                self.eps = self.dataset.OSEM_image.max()/1e3
             x_norm = self.x.norm()
-            step_size = prior_grad.norm() / g.norm() * 5
             print("prior: ", prior_grad.norm(), " lhkd: ", lhkd_grad.norm(), " x: ", x_norm, " g: ", g.norm(), " prior/x: ", prior_grad.norm()/x_norm, " lhkd/x: ", lhkd_grad.norm()/x_norm, " g/x: ", g.norm()/x_norm)
             print("prior/lhkd: ", prior_grad.norm()/lhkd_grad.norm(), " prior/g: ", prior_grad.norm()/g.norm(), " lhkd/g: ", lhkd_grad.norm()/g.norm())
         
@@ -142,8 +140,9 @@ class BSREMSkeleton(Algorithm):
         else:
             g.multiply(self.x + self.eps, out=self.x_update)
             self.x_update.divide(self.average_sensitivity, out=self.x_update)
-        
-        if self.iteration > 0:
+        if self.iteration == 0:
+            step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+        else:
             delta_x = self.x - self.x_prev
             delta_g = self.x_update_prev - self.x_update
 
