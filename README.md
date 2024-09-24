@@ -7,33 +7,16 @@
 [![discord](https://img.shields.io/badge/chat-discord-blue?logo=discord&logoColor=white)](https://discord.gg/Ayd72Aa4ry)
 
 
-## TAGS
-- v0.0, BSREM with constant step size and the full gradient
-- v0.1, BUG
-- v0.2, BSREM with Barzilai-Borwein step size and the full gradient 
-- v0.3 BUG
-- v0.4 DOG-BSREM
-- v0.5 Warm-Start SAGA
-
-### Creating tags note:
-
-Make sure on the right branch
-
-
-```
-git tag -a <tagname> -m '<message>'
-git push origin --tags
-```
-
-## Approaches
+## Reconstruction Methods
 To compute the number of subsets we use the functions in **utils/number_of_subsets.py**. This is a set of heuristic rules: 1) number of subsets has to be divisible by the number of views, 2) the number of subsets should have many prime factors (this results in a good herman meyer order), 3) I want at least 8 views in each subset and 4) I want at least 5 subsets. The function in **utils/number_of_subsets.py** is probably not really efficient. 
 
 For TOF flight data, we do not use rule 3) and 4). If several number of subsets have the same number of prime factors, we take the larger number of subsets. 
 
 All in all, this results in: 50 views (TOF) -> 25 subsets, 128 views -> 16 subsets and 252 views -> 28 views.
 
+In total, we submit three different methods. 
 
-### 1) Educated Warm Start (main_EWS_SAGA.py)
+### 1) Educated Warm Start (in main branch)
 
 To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. It takes as input the OSEM image, the (preconditioned) gradient of the likelihood and the (preconditioned) gradient of the prior. As the preconditioner we use the usuall choice taken in BSREM.  The network weights are available [HERE](https://drive.google.com/file/d/1RcuP74EVpmqXB2UGXJRuEKcv-Fpv6jWd/view?usp=sharing), please download and put in a folder **checkpoint/** in this repo. (TODO: write automatic download script)
 
@@ -45,32 +28,36 @@ $$\lambda_k = \frac{\max_{i < k} \| x_i - x_\text{init} \|_2}{ \sqrt{\sum_{i < k
 
 where $\Delta x_i$ is the full update, i.e., the preconditioned gradient, as iteration $i$. This deviates from the original DOP paper as they only have no preconditioner and use the sum of gradients in the denominator. 
 
-### 2) Adam-SAGA (adaptive moment estimation, main_ADAM_SAGA.py)
+### 2) ADAM (in adam branch)
 
-Adam is a popular first order stochastic optimisation algorithm heavily used in deep learning. Here, we combine ADAM with the gradient averaging from SAGA. 
+ADAM (adaptive moment estimation) is a popular first order stochastic optimisation algorithm heavily used in deep learning. ADAM builds upon AdaGrad and estimates a suitable parameters based on first and second moments of the gradient.  
 
-We start with a few epochs of SGD and then move to SAGA. 
+### 3) Full Gradient Descent (in gradient_descent branch)
 
-
-### 3) Full Gradient Descent (main_Full_Gradient.py)
-
-As a final submission, we do not make use of subsets at all. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. Nonetheless, in our experiments we found that compared quite favourably to some other stochastic methods. Here, we use the Barzilai-Borwein step size rule. We use the BSREM preconditioner.
+The characteristics of the datasets varied a lot, i.e., we had low count data, different scanner setups, TOF data, and so on. We tried a lot of different algorithms and approaches, both classical and deep learning based, but it was hard to create a method, which works consistently for all these different settings. Based on this experience, we submit a full gradient descent algorithm with a Barzilai-Borwein step size rule and a BSREM-type preconditioner. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. However, most work look at a speed up with respect to number of iterations. For the challenge, we are interested in raw computation time. With respect to raw computation time, we sometimes saw only a minor different between full gradient descent and gradient descent using subsets.  
 
 
-### Setup on Hydra
-
-I setup the enviroment on hydra as follows:
-
-```
-docker run --rm -it -v /home/alexdenker/pet/data:/mnt/share/petric:ro -v .:/workdir -w /workdir --gpus all --user root synerbi/sirf:edge-gpu /bin/bash 
-
-pip install git+https://github.com/TomographicImaging/Hackathon-000-Stochastic-QualityMetrics
-
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-```
+## TAGS
+- v0.0, BSREM with constant step size and the full gradient
+- v0.1, BUG
+- v0.2, BSREM with Barzilai-Borwein step size and the full gradient 
+- v0.3 BUG
+- v0.4 DOG-BSREM
+- v0.5 Warm-Start SAGA
 
 
 ## Challenge information
+
+### Creating tags note:
+
+Make sure on the right branch
+
+
+```
+git tag -a <tagname> -m '<message>'
+git push origin --tags
+```
+
 
 ### Layout
 
@@ -125,4 +112,7 @@ Any modifications to `petric.py` are ignored.
 
 ## Team
 
-Imraj Singh, Alexander Denker, Zeljko Kereta (University College London)
+We thank Zeljko Kereta for valuable discussion.
+
+- Imraj Singh and Alexander Denker (University College London)
+

@@ -147,7 +147,7 @@ class BSREMSkeleton(Algorithm):
             delta_x = self.x - self.x_prev
             delta_g = self.x_update_prev - self.x_update
 
-            dot_product = delta_g.dot(delta_x)
+            dot_product = delta_g.dot(delta_x) # (deltag * deltax).sum()
             alpha_long = delta_x.norm()**2 / np.abs(dot_product)
             #dot_product = delta_x.dot(delta_g)
             #alpha_short = np.abs((dot_product).sum()) / delta_g.norm()**2 
