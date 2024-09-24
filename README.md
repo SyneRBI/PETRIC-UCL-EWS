@@ -125,4 +125,7 @@ Any modifications to `petric.py` are ignored.
 
 ## Team
 
-Imraj Singh, Alexander Denker, Zeljko Kereta (University College London)
+We thank Zeljko Kereta for valuable discussion.
+
+- Imraj Singh and Alexander Denker (University College London)
+
