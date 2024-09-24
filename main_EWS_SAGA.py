@@ -81,7 +81,7 @@ class Submission(SAGA):
             x_pred = setup_model.network_precond(model_inp) 
             x_pred[x_pred < 0] = 0
         
-        del setup_model.network_precond
+        #del setup_model.network_precond
         del initial_images
         del prior_grads
         del pll_grads

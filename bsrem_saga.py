@@ -66,6 +66,9 @@ class SAGASkeleton(Algorithm):
         self.sum_gm = self.x.get_uniform_copy(0)
         self.x_update = self.x.get_uniform_copy(0)
 
+        self.last_objective_function = self.objective_function_inter(self.x)
+        self.gamma = 1.0 # scaling for learning rate 
+
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
 
@@ -82,6 +85,15 @@ class SAGASkeleton(Algorithm):
         return self.iteration // self.num_subsets
 
     def update(self):
+        if self.epoch() % 4 == 0 and self.iteration % self.num_subsets == 0 and self.epoch() > 0:
+            loss = self.objective_function_inter(self.x)
+            #print("Objective at ", self.epoch(), " is = ", loss)
+
+            if loss < self.last_objective_function:
+                #print("Reduce learning rate!")
+                self.gamma = self.gamma * 0.75
+
+            self.last_objective_function = loss 
         # for the first epochs just do SGD
         if self.epoch() < 2:
             # construct gradient of subset 
@@ -143,7 +155,7 @@ class SAGASkeleton(Algorithm):
                 if self.update_filter is not None:
                     self.update_filter.apply(self.x_update)
                 
-                self.x.sapyb(1.0, self.x_update, self.alpha, out=self.x)
+                self.x.sapyb(1.0, self.x_update, self.gamma*self.alpha, out=self.x)
                 #self.x += self.alpha * self.x_update
 
                 # threshold to non-negative
@@ -175,11 +187,8 @@ class SAGASkeleton(Algorithm):
 
             # DOG lr
             self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
-            
-            #if self.alpha > self.last_alpha:
-            #    self.sum_gradient += 0.0001 * self.sum_gradient
 
-            self.x.sapyb(1.0, self.x_update, self.alpha, out=self.x)
+            self.x.sapyb(1.0, self.x_update, self.gamma*self.alpha, out=self.x)
             #self.x += self.alpha * self.x_update
 
             # threshold to non-negative
@@ -202,6 +211,14 @@ class SAGASkeleton(Algorithm):
         #for s in range(len(self.data)):
         #    v += self.subset_objective(x, s)
         return v
+
+    def objective_function_inter(self, x):
+        ''' value of objective function summed over all subsets '''
+        v = 0
+        for s in range(len(self.data)):
+            v += self.subset_objective(x, s)
+        return v
+
 
     def subset_objective(self, x, subset_num):
         ''' value of objective function for one subset '''

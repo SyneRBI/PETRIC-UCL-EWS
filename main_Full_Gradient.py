@@ -10,7 +10,7 @@ Once renamed or symlinked as `main.py`, it will be used by `petric.py` as follow
 from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 
-#from sirf.contrib.partitioner import partitioner
+from sirf.contrib.partitioner import partitioner
 
 from bsrem_bb import BSREM
 
