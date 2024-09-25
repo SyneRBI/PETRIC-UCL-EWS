@@ -32,7 +32,7 @@ class MaxIteration(callbacks.Callback):
 
 class Submission(BSREM):
     def __init__(self, data, 
-                 update_objective_interval: int = 1,
+                 update_objective_interval: int = 10,
                  **kwargs):
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
