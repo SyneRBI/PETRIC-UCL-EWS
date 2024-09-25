@@ -14,12 +14,17 @@ Usage:
 Options:
   --log LEVEL  : Set logging level (DEBUG, [default: INFO], WARNING, ERROR, CRITICAL)
 """
+
 import csv
 import logging
 import os
 from dataclasses import dataclass
-from pathlib import Path, PurePath
+from pathlib import Path
 from time import time
+from traceback import print_exc
+
+import torch 
+torch.cuda.set_per_process_memory_fraction(0.6)
 
 import numpy as np
 from skimage.metrics import mean_squared_error as mse
@@ -30,10 +35,14 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks as cil_callbacks
 from img_quality_cil_stir import ImageQualityCallback
 
+from datetime import datetime
+
+
+
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output_test")
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "full_gradient_rdp_diag_or_em" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -73,12 +82,10 @@ class SaveIters(Callback):
 
 class StatsLog(Callback):
     """Log image slices & objective value"""
-    def __init__(self, transverse_slice=None, coronal_slice=None, sagittal_slice=None, vmax=None, logdir=OUTDIR,
-                 **kwargs):
+    def __init__(self, transverse_slice=None, coronal_slice=None, vmax=None, logdir=OUTDIR, **kwargs):
         super().__init__(**kwargs)
         self.transverse_slice = transverse_slice
         self.coronal_slice = coronal_slice
-        self.sagittal_slice = sagittal_slice
         self.vmax = vmax
         self.x_prev = None
         self.tb = logdir if isinstance(logdir, SummaryWriter) else SummaryWriter(logdir=str(logdir))
@@ -91,7 +98,6 @@ class StatsLog(Callback):
         # initialise `None` values
         self.transverse_slice = algo.x.dimensions()[0] // 2 if self.transverse_slice is None else self.transverse_slice
         self.coronal_slice = algo.x.dimensions()[1] // 2 if self.coronal_slice is None else self.coronal_slice
-        self.sagittal_slice = algo.x.dimensions()[2] // 2 if self.sagittal_slice is None else self.sagittal_slice
         self.vmax = algo.x.max() if self.vmax is None else self.vmax
 
         self.tb.add_scalar("objective", algo.get_last_loss(), algo.iteration, t)
@@ -100,11 +106,9 @@ class StatsLog(Callback):
             self.tb.add_scalar("normalised_change", normalised_change, algo.iteration, t)
         self.x_prev = algo.x.clone()
         x_arr = algo.x.as_array()
-        self.tb.add_image("transverse", np.clip(x_arr[None, self.transverse_slice] / self.vmax, 0, 1), algo.iteration,
-                          t)
+        self.tb.add_image("transverse", np.clip(x_arr[self.transverse_slice:self.transverse_slice + 1] / self.vmax, 0,
+                                                1), algo.iteration, t)
         self.tb.add_image("coronal", np.clip(x_arr[None, :, self.coronal_slice] / self.vmax, 0, 1), algo.iteration, t)
-        self.tb.add_image("sagittal", np.clip(x_arr[None, :, :, self.sagittal_slice] / self.vmax, 0, 1), algo.iteration,
-                          t)
         log.debug("...logged")
 
 
@@ -146,15 +150,14 @@ class QualityMetrics(ImageQualityCallback, Callback):
 
 class MetricsWithTimeout(cil_callbacks.Callback):
     """Stops the algorithm after `seconds`"""
-    def __init__(self, seconds=600, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, sagittal_slice=None,
-                 **kwargs):
+    def __init__(self, seconds=300, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, **kwargs): 
         super().__init__(**kwargs)
+        print("outdir: ", outdir)
         self._seconds = seconds
         self.callbacks = [
             cil_callbacks.ProgressCallback(),
             SaveIters(outdir=outdir),
-            (tb_cbk := StatsLog(logdir=outdir, transverse_slice=transverse_slice, coronal_slice=coronal_slice,
-                                sagittal_slice=sagittal_slice))]
+            (tb_cbk := StatsLog(logdir=outdir, transverse_slice=transverse_slice, coronal_slice=coronal_slice))]
         self.tb = tb_cbk.tb # convenient access to the underlying SummaryWriter
         self.reset()
 
@@ -205,7 +208,6 @@ class Dataset:
     whole_object_mask: STIR.ImageData | None
     background_mask: STIR.ImageData | None
     voi_masks: dict[str, STIR.ImageData]
-    path: PurePath
 
 
 def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
@@ -241,55 +243,44 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
     voi_masks = {
         voi.stem[4:]: STIR.ImageData(str(voi))
         for voi in (srcdir / 'PETRIC').glob("VOI_*.hv") if voi.stem[4:] not in ('background', 'whole_object')}
-
     return Dataset(acquired_data, additive_term, mult_factors, OSEM_image, prior, kappa, reference_image,
-                   whole_object_mask, background_mask, voi_masks, srcdir.resolve())
+                   whole_object_mask, background_mask, voi_masks)
 
-
-DATA_SLICES = {
-    'Siemens_mMR_NEMA_IQ': {'transverse_slice': 72, 'coronal_slice': 109, 'sagittal_slice': 89},
-    'Siemens_mMR_NEMA_IQ_lowcounts': {'transverse_slice': 72, 'coronal_slice': 109, 'sagittal_slice': 89},
-    'Siemens_mMR_ACR': {'transverse_slice': 99},
-    'NeuroLF_Hoffman_Dataset': {'transverse_slice': 72},
-    'Mediso_NEMA_IQ': {'transverse_slice': 22, 'coronal_slice': 89, 'sagittal_slice': 66},
-    'Siemens_Vision600_thorax': {}}
 
 if SRCDIR.is_dir():
     # create list of existing data
     # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
-    
-    data_dirs_metrics = [(SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA_IQ",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA_IQ", **DATA_SLICES['Mediso_NEMA_IQ'])]), 
-                    (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman_Dataset",
-                     [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman_Dataset", **DATA_SLICES['NeuroLF_Hoffman_Dataset'])]),
-                    (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR",
-                     [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_ACR", **DATA_SLICES['Siemens_mMR_ACR'])]),
-                    (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "Siemens_mMR_NEMA_IQ",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ", **DATA_SLICES['Siemens_mMR_NEMA_IQ'])]), 
-                    (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", OUTDIR / "Siemens_mMR_NEMA_IQ_lowcounts",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ_lowcounts", **DATA_SLICES['Siemens_mMR_NEMA_IQ_lowcounts'])]),  
-                    (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Siemens_Vision600_thorax",
-                     [MetricsWithTimeout(outdir=OUTDIR / "Siemens_Vision600_thorax", **DATA_SLICES['Siemens_Vision600_thorax'])]),
+    data_dirs_metrics = [(SRCDIR / "Mediso_NEMA_IQ", 
+                      OUTDIR / "Mediso_NEMA",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Mediso_NEMA")]), 
+                    (SRCDIR / "NeuroLF_Hoffman_Dataset",
+                      OUTDIR / "NeuroLF_Hoffman",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "NeuroLF_Hoffman")]),
+                    (SRCDIR / "Siemens_mMR_ACR",
+                      OUTDIR / "Siemens_ACR",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_ACR")]),
+                    (SRCDIR / "Siemens_mMR_NEMA_IQ", 
+                      OUTDIR / "Siemens_NEMA",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_NEMA")]), 
+                    (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", 
+                      OUTDIR / "Siemens_NEMA_lowcounts",
+                      [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Siemens_NEMA_lowcounts")]),  
+                    (SRCDIR / "Siemens_Vision600_thorax",
+                      OUTDIR / "Vision600_thorax",
+                     [MetricsWithTimeout(seconds=300, outdir=OUTDIR / "Vision600_thorax")]),
                      ]
+ 
+
+
 else:
     log.warning("Source directory does not exist: %s", SRCDIR)
     data_dirs_metrics = [(None, None, [])] # type: ignore
 
-if __name__ != "__main__":
-    # load up first data-set for people to play with
-    srcdir, outdir, metrics = data_dirs_metrics[0]
-    if srcdir is None:
-        data = None
-    else:
-        data = get_data(srcdir=srcdir, outdir=outdir)
-        metrics[0].reset()
-else:
-    from traceback import print_exc
-
+if __name__ == "__main__":
     from docopt import docopt
     args = docopt(__doc__)
     logging.basicConfig(level=getattr(logging, args["--log"].upper()))
-    from main import Submission, submission_callbacks
+    from main_Full_Gradient import Submission, submission_callbacks
     assert issubclass(Submission, Algorithm)
     for srcdir, outdir, metrics in data_dirs_metrics:
         data = get_data(srcdir=srcdir, outdir=outdir)

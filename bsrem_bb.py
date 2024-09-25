@@ -130,8 +130,8 @@ class BSREMSkeleton(Algorithm):
                 self.compute_rdp_diag_hess = False
                 self.eps = self.dataset.OSEM_image.max()/1e3
             x_norm = self.x.norm()
-            print("prior: ", prior_grad.norm(), " lhkd: ", lhkd_grad.norm(), " x: ", x_norm, " g: ", g.norm(), " prior/x: ", prior_grad.norm()/x_norm, " lhkd/x: ", lhkd_grad.norm()/x_norm, " g/x: ", g.norm()/x_norm)
-            print("prior/lhkd: ", prior_grad.norm()/lhkd_grad.norm(), " prior/g: ", prior_grad.norm()/g.norm(), " lhkd/g: ", lhkd_grad.norm()/g.norm())
+            #print("prior: ", prior_grad.norm(), " lhkd: ", lhkd_grad.norm(), " x: ", x_norm, " g: ", g.norm(), " prior/x: ", prior_grad.norm()/x_norm, " lhkd/x: ", lhkd_grad.norm()/x_norm, " g/x: ", g.norm()/x_norm)
+            #print("prior/lhkd: ", prior_grad.norm()/lhkd_grad.norm(), " prior/g: ", prior_grad.norm()/g.norm(), " lhkd/g: ", lhkd_grad.norm()/g.norm())
         
         #g.multiply(self.x + self.eps, out=self.x_update)
         #self.x_update.divide(self.average_sensitivity, out=self.x_update)
@@ -154,7 +154,7 @@ class BSREMSkeleton(Algorithm):
 
             step_size = alpha_long #np.sqrt(alpha_long*alpha_short)
             #print("step size: ", step_size)
-        print("step size: ", step_size)
+        #print("step size: ", step_size)
 
         self.x_prev = self.x.copy()
         self.x_update_prev = self.x_update.copy()
