@@ -131,7 +131,7 @@ class BSREMSkeleton(Algorithm):
             else:
                 self.compute_rdp_diag_hess = False
                 self.eps = self.dataset.OSEM_image.max()/1e3
-            x_norm = self.x.norm()
+            #x_norm = self.x.norm()
             #print("prior: ", prior_grad.norm(), " lhkd: ", lhkd_grad.norm(), " x: ", x_norm, " g: ", g.norm(), " prior/x: ", prior_grad.norm()/x_norm, " lhkd/x: ", lhkd_grad.norm()/x_norm, " g/x: ", g.norm()/x_norm)
             #print("prior/lhkd: ", prior_grad.norm()/lhkd_grad.norm(), " prior/g: ", prior_grad.norm()/g.norm(), " lhkd/g: ", lhkd_grad.norm()/g.norm())
         
@@ -143,7 +143,7 @@ class BSREMSkeleton(Algorithm):
             g.multiply(self.x + self.eps, out=self.x_update)
             self.x_update.divide(self.average_sensitivity, out=self.x_update)
         if self.iteration == 0:
-            step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
+            step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.005), 3.0)
         else:
             delta_x = self.x - self.x_prev
             delta_g = self.x_update_prev - self.x_update
@@ -167,12 +167,12 @@ class BSREMSkeleton(Algorithm):
     
         
 
-        momentum = 0.3
-        self.new_x.fill(self.x + step_size * self.x_update + momentum * (self.x - self.last_x))
-        self.last_x = self.x.copy()
+        #momentum = 0.3
+        #self.new_x.fill(self.x + step_size * self.x_update + momentum * (self.x - self.last_x))
+        #self.last_x = self.x.copy()
         
-        self.x.fill(self.new_x)
-        #self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+        #self.x.fill(self.new_x)
+        self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
         #self.x += beta * (self.x - self.last_x)
         #self.x += self.x_update * step_size
 
