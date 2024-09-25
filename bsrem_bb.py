@@ -102,7 +102,9 @@ class BSREMSkeleton(Algorithm):
         self.x_update_prev = None 
 
         self.x_update = initial.get_uniform_copy(0)
-        
+        self.new_x = initial.get_uniform_copy(0)
+        self.last_x = initial.get_uniform_copy(0)
+
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
 
@@ -162,7 +164,16 @@ class BSREMSkeleton(Algorithm):
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
         
-        self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+    
+        
+
+        momentum = 0.3
+        self.new_x.fill(self.x + step_size * self.x_update + momentum * (self.x - self.last_x))
+        self.last_x = self.x.copy()
+        
+        self.x.fill(self.new_x)
+        #self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+        #self.x += beta * (self.x - self.last_x)
         #self.x += self.x_update * step_size
 
         # threshold to non-negative

@@ -13,7 +13,8 @@ from sirf.contrib.partitioner import partitioner
 #from utils.partioner_function_no_obj import data_partition
 
 #from adam_saga import Adam
-from adam import Adam
+#from adam import Adam
+from adamax import Adam
 
 from utils.number_of_subsets import compute_number_of_subsets
 

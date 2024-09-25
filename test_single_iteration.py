@@ -10,7 +10,7 @@ from skimage.metrics import mean_squared_error as mse
 from tqdm import tqdm 
 
 import torch 
-torch.cuda.set_per_process_memory_fraction(0.7)
+torch.cuda.set_per_process_memory_fraction(0.6)
 
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
@@ -108,16 +108,16 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 
 
 if SRCDIR.is_dir():
-    data_dirs_metrics = [ (SRCDIR / "Siemens_mMR_NEMA_IQ", 
+    data_dirs_metrics = [  (SRCDIR / "Siemens_mMR_NEMA_IQ", 
                       OUTDIR / "mMR_NEMA"), 
+                       (SRCDIR / "NeuroLF_Hoffman_Dataset",
+                      OUTDIR / "NeuroLF_Hoffman"),
                       (SRCDIR / "Mediso_NEMA_IQ", 
                       OUTDIR / "Mediso_NEMA"), 
                     (SRCDIR / "Siemens_Vision600_thorax",
                       OUTDIR / "Vision600_thorax"),
                      (SRCDIR / "Siemens_mMR_ACR",
                       OUTDIR / "Siemens_mMR_ACR"),
-                      (SRCDIR / "NeuroLF_Hoffman_Dataset",
-                      OUTDIR / "NeuroLF_Hoffman")
                      ]
 
     
@@ -176,7 +176,7 @@ for data_name in data_dirs_metrics:
     print(data_name[0])
     if data.acquired_data.shape[0] == 1:
         views = data.acquired_data.shape[2]
-        num_subsets = compute_number_of_subsets(views)
+        num_subsets = compute_number_of_subsets(views, tof=False)
     else:
         num_subsets = 25 
 
@@ -270,7 +270,7 @@ for data_name in data_dirs_metrics:
 
     prior_grad = torch.from_numpy(prior_grad.as_array()).float()
     prior_grad = prior_grad.to(device).unsqueeze(0)
-
+    print(torch.sum(osem_input_torch**2), torch.sum(prior_grad**2), torch.sum(grad**2))
     model_inp = torch.cat([osem_input_torch, grad, prior_grad], dim=0).unsqueeze(0)
 
     x_pred = precond(model_inp) #+ osem_input_torch.unsqueeze(0) 

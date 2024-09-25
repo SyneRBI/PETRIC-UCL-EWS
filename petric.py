@@ -20,6 +20,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from time import time
+from traceback import print_exc
+
+from datetime import datetime 
+
+import torch 
+torch.cuda.set_per_process_memory_fraction(0.6)
 
 import numpy as np
 from skimage.metrics import mean_squared_error as mse
@@ -33,7 +39,7 @@ from img_quality_cil_stir import ImageQualityCallback
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output_test")
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "FullGD_momentum=0.3_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 

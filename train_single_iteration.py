@@ -91,17 +91,13 @@ def get_data(srcdir=".", outdir=OUTDIR, sirf_verbosity=0):
 
 
 if SRCDIR.is_dir():
-    data_dirs_metrics = [ (SRCDIR / "Siemens_mMR_NEMA_IQ", 
-                      OUTDIR / "mMR_NEMA"), 
-                      (SRCDIR / "Mediso_NEMA_IQ", 
-                      OUTDIR / "Mediso_NEMA"), 
-                    (SRCDIR / "Siemens_Vision600_thorax",
-                      OUTDIR / "Vision600_thorax"),
-                     (SRCDIR / "Siemens_mMR_ACR",
-                      OUTDIR / "Siemens_mMR_ACR"),
-                      (SRCDIR / "NeuroLF_Hoffman_Dataset",
-                      OUTDIR / "NeuroLF_Hoffman")
-                     ]
+    data_dirs_metrics = [ (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "mMR_NEMA"), 
+                          (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA"), 
+                          (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Vision600_thorax"),
+                          (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR"),
+                          (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman"),
+                          (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", OUTDIR / "mMR_NEMA_lowcounts"),
+                        ]
 
 load_data = True 
 
@@ -219,32 +215,9 @@ print("Data loaded")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device: ", device)
-"""
-class NetworkPreconditioner(torch.nn.Module):
-    def __init__(self, n_layers = 1, hidden_channels = 16, kernel_size = 5):
-        super(NetworkPreconditioner, self).__init__()
-        self.list_of_conv3 = torch.nn.ModuleList()
-        self.list_of_conv3.append(torch.nn.Conv3d(3, 3*hidden_channels, kernel_size, groups=3, padding='same', bias=False))
-        self.list_of_conv3.append(torch.nn.Conv3d(3*hidden_channels, 3*hidden_channels, kernel_size, groups=3 , padding='same', bias=False))
-        self.list_of_conv3.append(torch.nn.Conv3d(3*hidden_channels, hidden_channels, kernel_size, padding='same', bias=False))
-        for _ in range(n_layers-2):
-            self.list_of_conv3.append(torch.nn.Conv3d(hidden_channels, hidden_channels, kernel_size, padding='same', bias=False))
-        self.list_of_conv3.append(torch.nn.Conv3d(hidden_channels, 1, kernel_size, padding='same',bias=False))
-        self.activation = torch.nn.ReLU()
-
-        #self.list_of_conv3[-1].weight.data.fill_(0.0)
-        #self.list_of_conv3[-1].bias.data.fill_(0.0)
-
-    def forward(self, x):
-        for layer in self.list_of_conv3[:-1]:
-            x = layer(x)
-            x = self.activation(x)
-        x = self.list_of_conv3[-1](x)
-        return x
-"""
 
 class NetworkPreconditioner(torch.nn.Module):
-    def __init__(self, n_layers = 1, hidden_channels = 8, kernel_size = 3):
+    def __init__(self, hidden_channels = 8, kernel_size = 3):
         super(NetworkPreconditioner, self).__init__()
 
         self.conv1 = torch.nn.Conv3d(3, 3*hidden_channels, kernel_size, groups=3, padding='same', bias=False)
