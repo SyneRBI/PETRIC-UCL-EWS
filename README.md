@@ -44,6 +44,7 @@ The characteristics of the datasets varied a lot, i.e., we had low count data, d
 - v0.3 BUG
 - v0.4 DOG-BSREM
 - v0.5 Warm-Start SAGA
+- v0.6 Full-gradient different preconds and BB
 
 
 ## Challenge information
