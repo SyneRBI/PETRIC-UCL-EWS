@@ -92,12 +92,12 @@ class BSREMSkeleton(Algorithm):
             delta_g = self.x_update_prev - self.x_update
 
             dot_product = delta_g.dot(delta_x) # (deltag * deltax).sum()
-            alpha_long = delta_x.norm()**2 / np.abs(dot_product)
+            alpha_long = 2*delta_x.norm()**2 / np.abs(dot_product)
             #dot_product = delta_x.dot(delta_g)
             #alpha_short = np.abs((dot_product).sum()) / delta_g.norm()**2 
             #print("short / long: ", alpha_short, alpha_long)
 
-            step_size = alpha_long #np.sqrt(alpha_long*alpha_short)
+            step_size = max(alpha_long, 0.01) #np.sqrt(alpha_long*alpha_short)
             #print("step size: ", step_size)
         #print("step size: ", step_size)
 
@@ -107,7 +107,7 @@ class BSREMSkeleton(Algorithm):
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
         
-        momentum = 0.3
+        momentum = 0.6
         self.new_x.fill(self.x + step_size * self.x_update + momentum * (self.x - self.last_x))
         self.last_x = self.x.copy()
         

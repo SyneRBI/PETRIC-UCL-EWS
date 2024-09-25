@@ -43,7 +43,6 @@ class Submission(BSREM):
         views = data.acquired_data.shape[2]
         num_subsets = compute_number_of_subsets(views, tof)
 
-
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,
                                                                     initial_image=data.OSEM_image,
