@@ -59,15 +59,12 @@ class Submission(BSREM):
 
         initial_images = torch.from_numpy(data.OSEM_image.as_array()).float().to(DEVICE).unsqueeze(0).unsqueeze(0)
         with torch.no_grad():
-            x_pred = setup_postprocessing.network_precond(initial_images) 
+            x_pred = setup_postprocessing.postprocessing_model(initial_images) 
             x_pred[x_pred < 0] = 0
         
         #del setup_model.network_precond
         del initial_images
-        del prior_grads
-        del pll_grads
-        del model_inp
-
+       
         initial = data.OSEM_image.clone()
         initial.fill(x_pred.detach().cpu().numpy().squeeze())
 
