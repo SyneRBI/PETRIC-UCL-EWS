@@ -247,14 +247,14 @@ precond = PostprocessingNetwork()
 precond = precond.to(device)
 precond.train() 
 
-precond.load_state_dict(torch.load("checkpoint/postprocessing_model.pt", weights_only=True))
+#precond.load_state_dict(torch.load("checkpoint/postprocessing_model.pt", weights_only=True))
 
-optimizer = torch.optim.Adam(precond.parameters(), lr=1e-4)
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.95)
+optimizer = torch.optim.Adam(precond.parameters(), lr=4e-4)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.98)
 print("Number of parameters: ", sum([p.numel() for p in precond.parameters()]))
 
 idx_to_plot = [100, 80,110, 90, 80, 100]
-for i in tqdm(range(2000)):
+for i in tqdm(range(3000)):
     optimizer.zero_grad()
 
     full_loss = 0

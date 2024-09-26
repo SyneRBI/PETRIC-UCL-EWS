@@ -3,12 +3,12 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 
 """
-EWS: Postprocessing + Full GD Updates
+EWS: Postprocessing + some iterative method
 
 """
 
 
-from bsrem import BSREM
+from bsrem_dowg import BSREM
 from utils.number_of_subsets import compute_number_of_subsets
 
 from sirf.contrib.partitioner import partitioner

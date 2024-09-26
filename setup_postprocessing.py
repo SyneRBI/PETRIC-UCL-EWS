@@ -66,5 +66,5 @@ DEVICE = "cuda"
 postprocessing_model = PostprocessingNetwork()
 postprocessing_model = postprocessing_model.to(DEVICE)
 postprocessing_model.eval() 
-postprocessing_model.load_state_dict(torch.load("checkpoint/postprocessing_model.pt"))
+postprocessing_model.load_state_dict(torch.load("checkpoint/postprocessing_model.pt", weights_only=True))
 
