@@ -130,7 +130,7 @@ class LION(LionSkeleton):
 
     def subset_gradient(self, x, subset_num):
         ''' Compute gradient at x for a particular subset'''
-        return self.obj_funs[subset_num].gradient(x)
+        return self.obj_funs[subset_num].gradient(x) 
 
     def subset_objective(self, x, subset_num):
         ''' value of objective function for one subset '''
