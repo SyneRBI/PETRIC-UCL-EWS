@@ -42,22 +42,18 @@ class AdamSkeleton(Algorithm):
         self.update_filter = update_filter
         self.configured = True
 
-        self.alpha = 1e-3
+        self.alpha = 0.002
         self.beta1 = 0.9
-        self.beta2 = 0.99
+        self.beta2 = 0.999
         self.eps_adam = 1e-7
 
         self.initial_step_size = None 
 
         self.m = initial.get_uniform_copy(0) 
-        self.m_hat = initial.get_uniform_copy(0) 
         self.v = initial.get_uniform_copy(0) 
-        self.v_hat = initial.get_uniform_copy(0) 
 
         self.subset_order = herman_meyer_order(self.num_subsets)
 
-
-        self.g_sq = initial.get_uniform_copy(0)
         self.x_update = initial.get_uniform_copy(0)
 
         # DOG parameters
@@ -85,18 +81,15 @@ class AdamSkeleton(Algorithm):
         self.m.sapyb(self.beta1,g, (1 - self.beta1), out=self.m)
         #self.m.fill(self.beta1 * self.m + (1 - self.beta1) * g)
 
-        g.power(2, out=self.g_sq)
-        self.v.sapyb(self.beta2, self.g_sq, (1 - self.beta2), out=self.v)
-        #self.v = self.beta2 * self.v + (1 - self.beta2) * self.g_sq
+        self.v = self.beta2 * self.v
+        #self.v.sapyb(0.0, self.v, self.beta2, out=self.v)
 
-        self.m.divide(1 - self.beta1 ** (self.iteration+1), out=self.m_hat)
-        #self.m_hat = self.m.clone() / (1 - self.beta1 ** (self.saga_iteration+1))
+        g.abs(out=g)
+        self.v.maximum(g, out=self.v)
         
-        self.v.divide(1 - self.beta2 ** (self.iteration+1), out=self.v_hat)
-        #self.v_hat = self.v.clone() / (1 - self.beta2 ** (self.saga_iteration+1))
-        self.v_hat.sqrt(out=self.v_hat)
         
-        self.m_hat.divide(self.v_hat + self.eps_adam,out=self.x_update)
+        
+        self.m.divide(self.v + self.eps_adam,out=self.x_update)
         #self.x_update = self.m_hat / (self.v_hat + self.eps_adam)
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
