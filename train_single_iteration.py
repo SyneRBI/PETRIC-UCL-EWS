@@ -333,7 +333,7 @@ for i in tqdm(range(2000)):
     optimizer.step()
     lr_scheduler.step()
 
-    torch.save(precond.state_dict(), "checkpoint/model.pt")
+    torch.save(precond.state_dict(), "checkpoint/bigger_model.pt")
 
-torch.save(precond.state_dict(), "checkpoint/model.pt")
+torch.save(precond.state_dict(), "checkpoint/bigger_model.pt")
 

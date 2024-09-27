@@ -8,7 +8,7 @@ EWS: Postprocessing + some iterative method
 """
 
 
-from bsrem_bb import BSREM
+from bsrem_dowg import BSREM
 from utils.number_of_subsets import compute_number_of_subsets
 
 from sirf.contrib.partitioner import partitioner
@@ -36,10 +36,12 @@ class MaxIteration(callbacks.Callback):
 
 class Submission(BSREM):
     def __init__(self, data, 
-                       update_objective_interval: int = 2,
+                       update_objective_interval: int = 10,
                        **kwargs):
         
-        num_subsets = 1
+        tof = (data.acquired_data.shape[0] > 1)
+        views = data.acquired_data.shape[2]
+        num_subsets = compute_number_of_subsets(views, tof)
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,

@@ -39,7 +39,7 @@ from img_quality_cil_stir import ImageQualityCallback
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "FullGD_momentum=0.3_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "Postprocessing_BSREM_FullGD_BB_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -152,7 +152,7 @@ class QualityMetrics(ImageQualityCallback, Callback):
 
 class MetricsWithTimeout(cil_callbacks.Callback):
     """Stops the algorithm after `seconds`"""
-    def __init__(self, seconds=600, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, sagittal_slice=None,
+    def __init__(self, seconds=400, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, sagittal_slice=None,
                  **kwargs):
         super().__init__(**kwargs)
         self._seconds = seconds
@@ -258,22 +258,25 @@ DATA_SLICES = {
     'Siemens_mMR_ACR': {'transverse_slice': 99},
     'NeuroLF_Hoffman_Dataset': {'transverse_slice': 72},
     'Mediso_NEMA_IQ': {'transverse_slice': 22, 'coronal_slice': 89, 'sagittal_slice': 66},
+    'GE_DMI3_Torso': {'transverse_slice': 22, 'coronal_slice': 89, 'sagittal_slice': 66},
     'Siemens_Vision600_thorax': {}}
 
 if SRCDIR.is_dir():
     # create list of existing data
     # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
     
-    data_dirs_metrics = [(SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA_IQ",
+    data_dirs_metrics = [(SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "Siemens_mMR_NEMA_IQ",
+                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ", **DATA_SLICES['Siemens_mMR_NEMA_IQ'])]), 
+                      (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA_IQ",
                       [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA_IQ", **DATA_SLICES['Mediso_NEMA_IQ'])]), 
                     (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman_Dataset",
                      [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman_Dataset", **DATA_SLICES['NeuroLF_Hoffman_Dataset'])]),
                     (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR",
                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_ACR", **DATA_SLICES['Siemens_mMR_ACR'])]),
-                    (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "Siemens_mMR_NEMA_IQ",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ", **DATA_SLICES['Siemens_mMR_NEMA_IQ'])]), 
                     (SRCDIR / "Siemens_mMR_NEMA_IQ_lowcounts", OUTDIR / "Siemens_mMR_NEMA_IQ_lowcounts",
                       [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ_lowcounts", **DATA_SLICES['Siemens_mMR_NEMA_IQ_lowcounts'])]),  
+                    (SRCDIR / "GE_DMI3_Torso",OUTDIR  / "GE_Torso",
+                      [MetricsWithTimeout(outdir=OUTDIR / "GE_Torso", **DATA_SLICES['GE_DMI3_Torso'])]),  
                     (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Siemens_Vision600_thorax",
                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_Vision600_thorax", **DATA_SLICES['Siemens_Vision600_thorax'])]),
                      ]
