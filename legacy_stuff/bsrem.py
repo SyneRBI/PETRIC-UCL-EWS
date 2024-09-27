@@ -7,122 +7,119 @@
 #
 # Copyright 2024 University College London
 
-
+import numpy
+import numpy as np 
 import sirf.STIR as STIR
 from sirf.Utilities import examples_data_path
 
+
 from cil.optimisation.algorithms import Algorithm 
 from utils.herman_meyer import herman_meyer_order
-import numpy as np
+import time 
+
 
 class BSREMSkeleton(Algorithm):
-    def __init__(self, data,
-                 update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
+    ''' Main implementation of a modified BSREM algorithm
+
+    This essentially implements constrained preconditioned gradient ascent
+    with an EM-type preconditioner.
+
+    In each update step, the gradient of a subset is computed, multiplied by a step_size and a EM-type preconditioner.
+    Before adding this to the previous iterate, an update_filter can be applied.
+
+    '''
+    def __init__(self, data, initial, 
+                 update_filter=STIR.TruncateToCylinderProcessor(),
+                 **kwargs):
+        '''
+        Arguments:
+        ``data``: list of items as returned by `partitioner`
+        ``initial``: initial estimate
+        ``initial_step_size``, ``relaxation_eta``: step-size constants
+        ``update_filter`` is applied on the (additive) update term, i.e. before adding to the previous iterate.
+        Set the filter to `None` if you don't want any.
+        '''
         super().__init__(**kwargs)
-        initial = self.dataset.OSEM_image
-        self.initial = initial.copy()
         self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
 
-        self.g = initial.get_uniform_copy(0)  
-
+        # compute small number to add to image in preconditioner
+        # don't make it too small as otherwise the algorithm cannot recover from zeroes.
         self.eps = initial.max()/1e3
         self.average_sensitivity = initial.get_uniform_copy(0)
         for s in range(len(data)):
             self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
         # add a small number to avoid division by zero in the preconditioner
         self.average_sensitivity += self.average_sensitivity.max()/1e4
-
-        #self.kappa_sq = self.dataset.kappa.power(2)
-
-        self.x_update = initial.get_uniform_copy(0)
+        
         self.subset = 0
         self.update_filter = update_filter
-        self.subset_order = herman_meyer_order(self.num_subsets)
         self.configured = True
-        self.v_t = initial.get_uniform_copy(0)
 
+        self.subset_order = herman_meyer_order(self.num_subsets)
 
-class BSREM(BSREMSkeleton):
-    def __init__(self, data, obj_funs, accumulate_gradient_iter, accumulate_gradient_num, gamma, **kwargs):
-        
-        self.obj_funs = obj_funs
-        
-        super().__init__(data, **kwargs)
-        self.accumulate_gradient_iter = accumulate_gradient_iter
-        self.accumulate_gradient_num = accumulate_gradient_num
+        self.x_prev = None 
+        self.x_update_prev = None 
 
-        self.alpha = None
+        self.x_update = initial.get_uniform_copy(0)
+        self.new_x = initial.get_uniform_copy(0)
+        self.last_x = initial.get_uniform_copy(0)
 
-        self.gamma = gamma
+    def subset_sensitivity(self, subset_num):
+        raise NotImplementedError
 
-        # DOG parameters
-        self.max_distance = 0 
-        self.sum_gradient = 0    
-
-        self.num_subsets_initial = len(data)
-
-        # check list of accumulate_gradient_iter is monotonically increasing
-        assert all(self.accumulate_gradient_iter[i] < self.accumulate_gradient_iter[i+1] for i in range(len(self.accumulate_gradient_iter)-1))
-        # check if accumulate_gradient_iter and accumulate_gradient_num have the same length
-        assert len(self.accumulate_gradient_iter) == len(self.accumulate_gradient_num)
+    def subset_gradient(self, x, subset_num):
+        raise NotImplementedError
 
     def epoch(self):
-            return (self.iteration + 1) // self.num_subsets_initial
+        return (self.iteration + 1) // self.num_subsets
 
-    def get_number_of_subsets_to_accumulate_gradient(self):
-        for index, boundary in enumerate(self.accumulate_gradient_iter):
-            if self.iteration < boundary*self.num_subsets_initial:
-                return self.accumulate_gradient_num[index]
-        return self.num_subsets
+    def step_size(self):
+        return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
-        if self.iteration == 0:
-            num_to_accumulate = self.num_subsets
-        else:
-            num_to_accumulate = self.get_number_of_subsets_to_accumulate_gradient()
+        
+        g = self.subset_gradient(self.x, self.subset_order[self.subset])
 
-        # use at most all subsets
-        if num_to_accumulate > self.num_subsets_initial:
-            num_to_accumulate = self.num_subsets_initial
-        
-        #print(f"Use {num_to_accumulate} subsets at iteration {self.iteration}")
-        for i in range(num_to_accumulate):
-            if i == 0:
-                self.g = self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
-            else:
-                self.g += self.obj_funs[self.subset_order[self.subset]].gradient(self.x)
-            self.subset = (self.subset + 1) % self.num_subsets
-            #print(f"\n Added subset {i+1} (i.e. {self.subset}) of {num_to_accumulate}\n")
-        self.g /= num_to_accumulate
-        
-        #self.x_update = self.g / (self.kappa_sq + 0.01) #(self.x + self.eps) * self.g / self.average_sensitivity 
-        self.x_update = (self.x + self.eps) * self.g / self.average_sensitivity 
+        g.multiply(self.x + self.eps, out=self.x_update)
+        self.x_update.divide(self.average_sensitivity, out=self.x_update)
+
+        if self.iteration == 0:
+            step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.005), 3.5)
+        else:
+            delta_x = self.x - self.x_prev
+            delta_g = self.x_update_prev - self.x_update
+
+            dot_product = delta_g.dot(delta_x) # (deltag * deltax).sum()
+            alpha_long = 1.25*delta_x.norm()**2 / np.abs(dot_product)
+            #dot_product = delta_x.dot(delta_g)
+            #alpha_short = np.abs((dot_product).sum()) / delta_g.norm()**2 
+            #print("short / long: ", alpha_short, alpha_long)
+
+            step_size = max(alpha_long, 0.01) #np.sqrt(alpha_long*alpha_short)
+            #print("step size: ", step_size)
+        #print("step size: ", step_size)
+
+        self.x_prev = self.x.copy()
+        self.x_update_prev = self.x_update.copy()
 
         if self.update_filter is not None:
             self.update_filter.apply(self.x_update)
+        
+        momentum = 0.4
+        self.new_x.fill(self.x + step_size * self.x_update + momentum * (self.x - self.last_x))
+        self.last_x = self.x.copy()
+        
+        self.x.fill(self.new_x)
+        #self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+        #self.x += beta * (self.x - self.last_x)
+        #self.x += self.x_update * step_size
 
-        if self.iteration == 0:
-            self.v_t = self.x_update
-        else:
-            self.v_t = self.gamma * self.v_t + (1 - self.gamma) * self.x_update
-
-        # compute DOG learning rate 
-        if self.iteration == 0:
-            step_size_estimate = min(max(1/(self.v_t.norm() + 1e-3), 0.05), 3.0)
-            self.alpha = step_size_estimate
-
-        distance = (self.x - self.initial).norm()
-        if distance > self.max_distance:
-            self.max_distance = distance 
-
-        self.sum_gradient += self.x_update.norm()**2
-
-        if self.iteration > 0:
-            self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
-        self.x +=  self.alpha * self.v_t
+        # threshold to non-negative
         self.x.maximum(0, out=self.x)
+        self.subset = (self.subset + 1) % self.num_subsets
+
 
     def update_objective(self):
         # required for current CIL (needs to set self.loss)
@@ -132,12 +129,35 @@ class BSREM(BSREMSkeleton):
         ''' value of objective function summed over all subsets '''
         v = 0
         #for s in range(len(self.data)):
-        #    v += self.obj_funs[s](x)
+        #    v += self.subset_objective(x, s)
         return v
 
+    def subset_objective(self, x, subset_num):
+        ''' value of objective function for one subset '''
+        raise NotImplementedError
+
+
+class BSREM(BSREMSkeleton):
+    ''' BSREM implementation using sirf.STIR objective functions'''
+    def __init__(self, data, obj_funs, initial, **kwargs):
+        '''
+        construct Algorithm with lists of data and, objective functions, initial estimate, initial step size,
+        step-size relaxation (per epoch) and optionally Algorithm parameters
+        '''
+        self.obj_funs = obj_funs
+        super().__init__(data, initial, **kwargs)
+
     def subset_sensitivity(self, subset_num):
-        ''' Compute sensitivity for a particular subset'''
+        ''' Compute sensitiSvity for a particular subset'''
         self.obj_funs[subset_num].set_up(self.x)
         # note: sirf.STIR Poisson likelihood uses `get_subset_sensitivity(0) for the whole
         # sensitivity if there are no subsets in that likelihood
         return self.obj_funs[subset_num].get_subset_sensitivity(0)
+
+    def subset_gradient(self, x, subset_num):
+        ''' Compute gradient at x for a particular subset'''
+        return self.obj_funs[subset_num].gradient(x)
+
+    def subset_objective(self, x, subset_num):
+        ''' value of objective function for one subset '''
+        return self.obj_funs[subset_num](x)

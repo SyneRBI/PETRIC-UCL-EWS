@@ -31,43 +31,51 @@ class SAGASkeleton(Algorithm):
     Before adding this to the previous iterate, an update_filter can be applied.
 
     '''
-    def __init__(self, data, initial, average_sensitivity,
-                 update_filter=STIR.TruncateToCylinderProcessor(), **kwargs):
+    def __init__(self, data, initial, 
+                 update_filter=STIR.TruncateToCylinderProcessor(),
+                 **kwargs):
         '''
         Arguments:
         ``data``: list of items as returned by `partitioner`
         ``initial``: initial estimate
+        ``initial_step_size``, ``relaxation_eta``: step-size constants
         ``update_filter`` is applied on the (additive) update term, i.e. before adding to the previous iterate.
         Set the filter to `None` if you don't want any.
         '''
         super().__init__(**kwargs)
-
-        self.x = initial    
-        self.initial = initial.copy()
+        self.x = initial.copy()
         self.data = data
         self.num_subsets = len(data)
-        self.average_sensitivity = average_sensitivity
-        self.eps = self.dataset.OSEM_image.max()/1e3
+
+        # compute small number to add to image in preconditioner
+        # don't make it too small as otherwise the algorithm cannot recover from zeroes.
+        self.eps = initial.max()/1e3
+        self.average_sensitivity = initial.get_uniform_copy(0)
+        for s in range(len(data)):
+            self.average_sensitivity += self.subset_sensitivity(s)/self.num_subsets
+        # add a small number to avoid division by zero in the preconditioner
+        self.average_sensitivity += self.average_sensitivity.max()/1e4
         
+        self.precond = initial.get_uniform_copy(0)
+
         self.subset = 0
         self.update_filter = update_filter
         self.configured = True
 
-        # DOG parameters
-        self.max_distance = 0 
-        self.sum_gradient = 0    
-
-        self.alpha = None 
-        self.last_alpha = None 
         self.subset_order = herman_meyer_order(self.num_subsets)
+
+        self.x_prev = None 
+        self.x_update_prev = None 
+
+        self.x_update = initial.get_uniform_copy(0)
 
         self.gm = [self.x.get_uniform_copy(0) for _ in range(self.num_subsets)]
         
         self.sum_gm = self.x.get_uniform_copy(0)
         self.x_update = self.x.get_uniform_copy(0)
 
-        self.last_objective_function = self.objective_function_inter(self.x)
-        self.gamma = 1.0 # scaling for learning rate 
+        self.r = 0.1
+        self.v = 0 # weighted gradient sum 
 
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
@@ -85,52 +93,34 @@ class SAGASkeleton(Algorithm):
         return self.iteration // self.num_subsets
 
     def update(self):
-        if self.epoch() % 4 == 0 and self.iteration % self.num_subsets == 0 and self.epoch() > 0:
-            loss = self.objective_function_inter(self.x)
-            #print("Objective at ", self.epoch(), " is = ", loss)
 
-            if loss < self.last_objective_function:
-                #print("Reduce learning rate!")
-                self.gamma = self.gamma * 0.75
-
-            self.last_objective_function = loss 
         # for the first epochs just do SGD
         if self.epoch() < 2:
             # construct gradient of subset 
             subset_choice = self.subset_order[self.subset]
             g = self.subset_gradient(self.x, subset_choice) 
-            #print("Gradient norm: ", g.norm())
+
             g.multiply(self.x + self.eps, out=self.x_update)
             self.x_update.divide(self.average_sensitivity, out=self.x_update)
-            #self.x_update = (self.x + self.eps) * g / self.average_sensitivity 
             
-            # SGD for two epochs 
-            if self.iteration == 0:
-                step_size_estimate = min(max(1/(self.x_update.norm() + 1e-3), 0.05), 3.0)
-                self.alpha = step_size_estimate
-
-            distance = (self.x - self.initial).norm()
-            if distance > self.max_distance:
-                self.max_distance = distance 
-
-            self.sum_gradient += self.x_update.norm()**2
-
-            if self.iteration > 0:
-                self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
+            # DOwG learning rate: DOG unleashed!
+            self.r = max((self.x - self.initial).norm(), self.r)
+            self.v += self.r**2 * self.x_update.norm()**2
+            step_size = self.r**2 / np.sqrt(self.v)
+            step_size = max(step_size, 1e-4) # dont get too small
             
             if self.update_filter is not None:
                 self.update_filter.apply(self.x_update)
 
             #print(self.alpha, self.sum_gradient)
-            self.x.sapyb(1.0, self.x_update, self.alpha, out=self.x)
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
             #self.x += self.alpha * self.x_update
             self.x.maximum(0, out=self.x)
 
         # do SAGA
         else:
             # do one step of full gradient descent to set up subset gradients
-            
-            if (self.epoch() in [2]) and self.iteration % self.num_subsets == 0:
+            if (self.epoch() in [2,6,10,14]) and self.iteration % self.num_subsets == 0:
                 # construct gradient of subset 
                 #print("One full gradient step to intialise SAGA")
                 g = self.x.get_uniform_copy(0)
@@ -141,22 +131,20 @@ class SAGASkeleton(Algorithm):
                     #g += gm
 
                 g /= self.num_subsets
-                #print("Gradient norm: ", g.norm())
-                distance = (self.x - self.initial).norm()
-                if distance > self.max_distance:
-                    self.max_distance = distance 
+                
+                # DOwG learning rate: DOG unleashed!
+                self.r = max((self.x - self.initial).norm(), self.r)
+                self.v += self.r**2 * self.x_update.norm()**2
+                step_size = self.r**2 / np.sqrt(self.v)
+                step_size = max(step_size, 1e-4) # dont get too small
 
                 g.multiply(self.x + self.eps, out=self.x_update)
                 self.x_update.divide(self.average_sensitivity, out=self.x_update)
-                #self.x_update = (self.x + self.eps) * g / self.average_sensitivity 
-                self.sum_gradient += self.x_update.norm()**2
-                self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
-
+                
                 if self.update_filter is not None:
                     self.update_filter.apply(self.x_update)
                 
-                self.x.sapyb(1.0, self.x_update, self.gamma*self.alpha, out=self.x)
-                #self.x += self.alpha * self.x_update
+                self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
 
                 # threshold to non-negative
                 self.x.maximum(0, out=self.x)
@@ -169,27 +157,21 @@ class SAGASkeleton(Algorithm):
             subset_choice = self.subset_order[self.subset]
             g = self.subset_gradient(self.x, subset_choice) 
 
-            #gradient = self.num_subsets * (g - self.gm[subset_choice]) + self.sum_gm #/ self.num_subsets
             gradient = (g - self.gm[subset_choice]) + self.sum_gm / self.num_subsets
-
-            distance = (self.x - self.initial).norm()
-            if distance > self.max_distance:
-                self.max_distance = distance 
-
+        
             gradient.multiply(self.x + self.eps, out=self.x_update)
             self.x_update.divide(self.average_sensitivity, out=self.x_update)
-            #self.x_update = (self.x + self.eps) * gradient / self.average_sensitivity 
-
-            self.sum_gradient += self.x_update.norm()**2
-
+        
             if self.update_filter is not None:
                 self.update_filter.apply(self.x_update)
 
-            # DOG lr
-            self.alpha = self.max_distance / np.sqrt(self.sum_gradient)
+            # DOwG learning rate: DOG unleashed!
+            self.r = max((self.x - self.initial).norm(), self.r)
+            self.v += self.r**2 * self.x_update.norm()**2
+            step_size = self.r**2 / np.sqrt(self.v)
+            step_size = max(step_size, 1e-4) # dont get too small
 
-            self.x.sapyb(1.0, self.x_update, self.gamma*self.alpha, out=self.x)
-            #self.x += self.alpha * self.x_update
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
 
             # threshold to non-negative
             self.x.maximum(0, out=self.x)
@@ -197,9 +179,7 @@ class SAGASkeleton(Algorithm):
         self.sum_gm = self.sum_gm - self.gm[subset_choice] + g
         self.gm[subset_choice] = g
 
-        
         self.subset = (self.subset + 1) % self.num_subsets
-        self.last_alpha = self.alpha
         
     def update_objective(self):
         # required for current CIL (needs to set self.loss)
