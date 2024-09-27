@@ -8,18 +8,19 @@
 
 
 ## Reconstruction Methods - Educated Warm Start
-To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. It takes as input only the OSEM image, provided by the organisers. The network weights are available in the folder *checkpoint/*.
+To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. All layers in the network have no bias and we ReLU activation functions. This results in a 1-homogeneous network. In this way, the network should be independent of the intensity of the image. It takes as input only the OSEM image, provided by the organisers. The network weights are available in the folder *checkpoint/*.
 
 We employ three different classical iterative algortihms.
 
+### 1) BSREM preconditioner, DOwG step size rule, SAGA gradient estimation (in branch: main)
+We employ the traditional BSREM algorithm. The number of subsets is automatically calculated using some heuristics (see below). We use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. We use SAGA to get an estimate of the full gradient.
 
-### 1) BSREM - DOwG (in branch: main)
-First, we just employ the traditional BSREM algorithm. The number of subsets is automatically calculated using some heuristics (see below). We employ [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation.
 
-### 2) BSREM - Full Gradient Descent
+### 2) BSREM preconditioner, DOwG step size rule, SGD (in branch: ews_sgd)
+We employ the traditional BSREM algorithm. The number of subsets is automatically calculated using some heuristics (see below). We use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation.
+
+### 3) BSREM preconditioner, full gradient descent, Barzilai-Borwein step size rule (in branch: full_gd)
 The characteristics of the datasets varied a lot, i.e., we had low count data, different scanner setups, TOF data, and so on. We tried a lot of different algorithms and approaches, both classical and deep learning based, but it was hard to design a method, which works consistently for all these different settings. Based on this experience, we submit a full gradient descent algorithm with a Barzilai-Borwein step size rule and a BSREM-type preconditioner. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. However, most work look at a speed up with respect to number of iterations. For the challenge, we are interested in raw computation time. With respect to raw computation time, we sometimes saw only a minor different between full gradient descent and gradient descent using subsets.  
-
-### 3) To be decided
 
 
 ### Subset Choice 
