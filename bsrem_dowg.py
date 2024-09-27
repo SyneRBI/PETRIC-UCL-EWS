@@ -79,8 +79,26 @@ class BSREMSkeleton(Algorithm):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
+        if self.epoch() < 10:
+            g = self.subset_gradient(self.x, self.subset_order[self.subset])
+        elif self.epoch() >= 10 and self.epoch() < 20:
+            for i in range(2):
+                if i == 0:
+                    g = self.subset_gradient(self.x, self.subset_order[self.subset])   
+                else:
+                    g += self.subset_gradient(self.x, self.subset_order[self.subset])
+                self.subset = (self.subset + 1) % self.num_subsets
         
-        g = self.subset_gradient(self.x, self.subset_order[self.subset])
+            g /= 2
+        else:
+            for i in range(4):
+                if i == 0:
+                    g = self.subset_gradient(self.x, self.subset_order[self.subset])   
+                else:
+                    g += self.subset_gradient(self.x, self.subset_order[self.subset])
+                self.subset = (self.subset + 1) % self.num_subsets
+        
+            g /= 4            
 
         g.multiply(self.x + self.eps, out=self.x_update)
         self.x_update.divide(self.average_sensitivity, out=self.x_update)
