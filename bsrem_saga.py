@@ -207,13 +207,13 @@ class BSREMSkeleton(Algorithm):
 
 class BSREM(BSREMSkeleton):
     ''' SAGA implementation using sirf.STIR objective functions'''
-    def __init__(self, data, obj_funs, initial, average_sensitivity, **kwargs):
+    def __init__(self, data, obj_funs, initial, **kwargs):
         '''
         construct Algorithm with lists of data and, objective functions, initial estimate
         and optionally Algorithm parameters
         '''
         self.obj_funs = obj_funs
-        super().__init__(data, initial,average_sensitivity, **kwargs)
+        super().__init__(data, initial, **kwargs)
 
     def subset_sensitivity(self, subset_num):
         ''' Compute sensitivity for a particular subset'''
