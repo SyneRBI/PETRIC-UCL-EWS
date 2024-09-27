@@ -3,23 +3,22 @@ from cil.optimisation.algorithms import Algorithm
 from cil.optimisation.utilities import callbacks
 
 """
-EWS: Postprocessing + some iterative method
+EWS: Postprocessing + Full GD
 
 """
 
+import torch 
+#torch.cuda.set_per_process_memory_fraction(0.8)
 
 from bsrem_bb import BSREM
-from utils.number_of_subsets import compute_number_of_subsets
 
 from sirf.contrib.partitioner import partitioner
-#from utils.partioner_function import data_partition
-#from utils.partioner_function_no_obj import data_partition
+
 
 assert issubclass(BSREM, Algorithm)
 
 
-import torch 
-torch.cuda.set_per_process_memory_fraction(0.8)
+
 
 import setup_postprocessing 
 
