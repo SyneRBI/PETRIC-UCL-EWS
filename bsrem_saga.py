@@ -44,6 +44,7 @@ class BSREMSkeleton(Algorithm):
         '''
         super().__init__(**kwargs)
         self.x = initial.copy()
+        self.initial = initial.copy()
         self.data = data
         self.num_subsets = len(data)
 
