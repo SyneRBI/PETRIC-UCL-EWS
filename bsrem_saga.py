@@ -21,7 +21,7 @@ from utils.herman_meyer import herman_meyer_order
 
 import torch 
 
-class SAGASkeleton(Algorithm):
+class BSREMSkeleton(Algorithm):
     ''' Main implementation of a modified BSREM algorithm
 
     This essentially implements constrained preconditioned gradient ascent
@@ -205,7 +205,7 @@ class SAGASkeleton(Algorithm):
         raise NotImplementedError
 
 
-class SAGA(SAGASkeleton):
+class BSREM(BSREMSkeleton):
     ''' SAGA implementation using sirf.STIR objective functions'''
     def __init__(self, data, obj_funs, initial, average_sensitivity, **kwargs):
         '''
