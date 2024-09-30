@@ -8,19 +8,25 @@
 
 
 ## Reconstruction Methods - Educated Warm Start
-Giving reconstruction algorithms a warm start can speed up reconstruction time by starting closer to the minimiser. To this end, we employ a neural network to learn a suitable warm start image. The network is a (small) 3D convolutional neural network. All layers in the network have no bias and we ReLU activation functions. This results in a 1-homogeneous network. In this way, the network should be independent of the intensity of the image. Although many different architectures and inputs were tested, the final network only takes the provided OSEM image as input. The network weights are available in the folder *checkpoint/*.
+Giving reconstruction algorithms a warm start can speed up reconstruction time by starting closer to the minimiser. To this end, we employ a neural network to learn a suitable warm start image. The network is a (small) 3D convolutional neural network. All layers in the network have no bias and use ReLU activation functions. This results in a 1-homogeneous network. In this way, the network should be independent of the intensity of the image. Although many different architectures and inputs were tested, the final network only takes the provided OSEM image as input. We tested a version, which also took in the gradient of the likelihood and the likelihood of the regulariser as extra inputs. This network performed slightly better. However, computing the gradients comes with a high cost, which in our opinion was better spent in the iterations of the classical iterative algorithm following the network. The network weights are available in the folder *checkpoint/*.
 
 We employ three different iterative algortihms.
 
 ### 1) EM-preconditioner, DOwG step size rule, SAGA gradient estimation (in branch: main)
-*Update rule* - SGD-like for first two epochs, then SAGA-like afterwards with full-gradients computed as 2nd, 6th, 10th and 14th epochs. 
-*Step-size rule* - All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
-*Preconditioner* EM-preconditioner the same as used in the BSREM example.
+**Update rule**: SGD-like for first two epochs, then SAGA-like afterwards with full-gradients computed as 2nd, 6th, 10th and 14th epochs. 
+
+**Step-size rule**: All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
+
+**Preconditioner**: EM-preconditioner the same as used in the BSREM example.
+
 
 ### 2) EM-preconditioner, DOwG step size rule, SGD (in branch: ews_sgd)
-*Update rule* - SGD-like for all iterations, after 10 iterations 4 subset gradients are accumulated per iteration.
-*Step-size rule* - All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
-*Preconditioner* EM-preconditioner the same as used in the BSREM example.
+**Update rule**: SGD-like for all iterations, after 10 iterations 4 subset gradients are accumulated per iteration.
+
+**Step-size rule**: All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
+
+**Preconditioner**: EM-preconditioner the same as used in the BSREM example.
+
 
 ### 3) Adaptive preconditioner, full gradient descent, Barzilai-Borwein step size rule (in branch: full_gd)
 
@@ -28,9 +34,11 @@ The characteristics of the datasets varied a lot, i.e., we had low count data, d
 
 For the precondtioner, the ratio between the norm of RDP gradient vs. the norm of the full objective gradient is used to gauge the dominance of the RDP component of the objective function. If this fraction is larger than 0.5 (i.e. RDP is dominating) a preconditioner utilising an approximation of the Hessian of RDP is used. The preconditioner used is similar to [Tsai et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/29610077/), however, the Hessian row sum of the likelihood term is not updated each iteration. Additionally, we found that the Hessian row sum of the RDP prior was instable, so instead we only used the diagonal approximation of the Hessian evaluated at each iterate. This defines a kind of strange preconditioner, where only the RDP component of the preconditioner is updated per iteration. For the case when the fraction was lower than 0.5, the EM-preconditioner was used. This was observed to provided better performance when the likelihood component is more dominant, also this avoid the costly computation of the diagonal of the RDP Hessian.
 
-*Update rule* - GD for all iterations.
-*Step-size rule* - Barzilai-Borwein long step size rule. 
-*Preconditioner* Diagonal RDP Hessian + Row-sum of likelihood hessian, or EM-precondition based on a dominance of RDP component of the objective function.
+**Update rule**: GD for all iterations.
+
+**Step-size rule**: Barzilai-Borwein long step size rule. 
+
+**Preconditioner**: Diagonal RDP Hessian + Row-sum of likelihood hessian, or EM-precondition based on a dominance of RDP component of the objective function.
 
 ### Number of subset choice 
 To compute the number of subsets we use the functions in **utils/number_of_subsets.py**. This is a set of heuristic rules: 1) number of subsets has to be divisible by the number of views, 2) the number of subsets should have many prime factors (this results in a good herman meyer order), 3) I want at least 8 views in each subset and 4) I want at least 5 subsets. The function in **utils/number_of_subsets.py** is probably not really efficient. 
