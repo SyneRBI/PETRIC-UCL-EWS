@@ -102,7 +102,7 @@ class BSREMSkeleton(Algorithm):
 
         self.x_update = initial.get_uniform_copy(0)
 
-        self.rdp_hessian_freq = 4
+        self.rdp_hessian_freq = 3
 
     def subset_sensitivity(self, subset_num):
         raise NotImplementedError
@@ -117,8 +117,16 @@ class BSREMSkeleton(Algorithm):
         return self.initial_step_size / (1 + self.relaxation_eta * self.epoch())
 
     def update(self):
-        
-        g = self.subset_gradient(self.x, self.subset_order[self.subset])
+        if self.iteration == 0:
+            g = self.x.get_uniform_copy(0)
+            for i in range(self.num_subsets):
+                gm = self.subset_gradient(self.x, self.subset_order[i]) 
+                g.add(gm, out=g)
+
+            g /= self.num_subsets
+        else:
+            g = self.subset_gradient(self.x, self.subset_order[self.subset])
+
         if self.iteration == 0:
             prior_grad = self.dataset.prior.gradient(self.x)
             if prior_grad.norm()/g.norm() > 0.5:

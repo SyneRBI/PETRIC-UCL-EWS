@@ -17,7 +17,7 @@ from sirf.contrib.partitioner import partitioner
 
 assert issubclass(BSREM, Algorithm)
 
-
+from utils.number_of_subsets import divisorGenerator
 
 
 import setup_postprocessing 
@@ -38,7 +38,18 @@ class Submission(BSREM):
                        update_objective_interval: int = 2,
                        **kwargs):
         
-        num_subsets = 1
+        tof = data.acquired_data.shape[0]
+        views = data.acquired_data.shape[2]
+        if tof == 1:
+            num_subsets = 1
+        else:
+            # use a small number of subsets for TOF data
+            num_divisors = list(divisorGenerator(views))
+            
+            if len(num_divisors) <= 2:
+                num_subsets = num_divisors[-1]
+            else:
+                num_subsets = num_divisors[2]
 
         data_sub, _, obj_funs = partitioner.data_partition(data.acquired_data, data.additive_term,
                                                                     data.mult_factors, num_subsets,

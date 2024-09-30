@@ -121,11 +121,15 @@ def divisorGenerator(n):
 
 if __name__ == "__main__":
 
-    for num in [50, 252, 128]:
-        print("Test for ", num, " -> ", compute_number_of_subsets(num, tof=False), " subsets")
+    #for num in [50, 252, 128]:
+    #    print("Test for ", num, " -> ", compute_number_of_subsets(num, tof=False), " subsets")
 
-    for num in [50, 252, 128]:
-        print("Test TOF for ", num, " -> ", compute_number_of_subsets(num, tof=True), " subsets")
+    #for num in [50, 252, 128]:
+    #    print("Test TOF for ", num, " -> ", compute_number_of_subsets(num, tof=True), " subsets")
+    views = 50
+    num_divisors = list(divisorGenerator(views))
+
+    print(num_divisors)
 
     #for num in range(40, 400):
     #    print(num, compute_number_of_subsets(num, tof=True))
