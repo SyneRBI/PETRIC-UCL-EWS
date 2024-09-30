@@ -39,7 +39,7 @@ from img_quality_cil_stir import ImageQualityCallback
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "Postprocessing_RDP_FullGD_BB_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "FullGD_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -265,10 +265,12 @@ if SRCDIR.is_dir():
     # create list of existing data
     # NB: `MetricsWithTimeout` initialises `SaveIters` which creates `outdir`
     
-    data_dirs_metrics = [(SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "Siemens_mMR_NEMA_IQ",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ", **DATA_SLICES['Siemens_mMR_NEMA_IQ'])]), 
-                      (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA_IQ",
-                      [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA_IQ", **DATA_SLICES['Mediso_NEMA_IQ'])]), 
+    data_dirs_metrics = [  (SRCDIR / "Mediso_NEMA_IQ", OUTDIR / "Mediso_NEMA_IQ",
+                      [MetricsWithTimeout(outdir=OUTDIR / "Mediso_NEMA_IQ", **DATA_SLICES['Mediso_NEMA_IQ'], seconds=40)]),
+                        (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Siemens_Vision600_thorax",
+                     [MetricsWithTimeout(outdir=OUTDIR / "Siemens_Vision600_thorax", **DATA_SLICES['Siemens_Vision600_thorax'])]),
+                     (SRCDIR / "Siemens_mMR_NEMA_IQ", OUTDIR / "Siemens_mMR_NEMA_IQ",
+                      [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ", **DATA_SLICES['Siemens_mMR_NEMA_IQ'])]),   
                     (SRCDIR / "NeuroLF_Hoffman_Dataset", OUTDIR / "NeuroLF_Hoffman_Dataset",
                      [MetricsWithTimeout(outdir=OUTDIR / "NeuroLF_Hoffman_Dataset", **DATA_SLICES['NeuroLF_Hoffman_Dataset'])]),
                     (SRCDIR / "Siemens_mMR_ACR", OUTDIR / "Siemens_mMR_ACR",
@@ -277,8 +279,7 @@ if SRCDIR.is_dir():
                       [MetricsWithTimeout(outdir=OUTDIR / "Siemens_mMR_NEMA_IQ_lowcounts", **DATA_SLICES['Siemens_mMR_NEMA_IQ_lowcounts'])]),  
                     (SRCDIR / "GE_DMI3_Torso",OUTDIR  / "GE_Torso",
                       [MetricsWithTimeout(outdir=OUTDIR / "GE_Torso", **DATA_SLICES['GE_DMI3_Torso'])]),  
-                    (SRCDIR / "Siemens_Vision600_thorax", OUTDIR / "Siemens_Vision600_thorax",
-                     [MetricsWithTimeout(outdir=OUTDIR / "Siemens_Vision600_thorax", **DATA_SLICES['Siemens_Vision600_thorax'])]),
+
                      ]
 else:
     log.warning("Source directory does not exist: %s", SRCDIR)

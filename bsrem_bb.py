@@ -146,7 +146,9 @@ class BSREMSkeleton(Algorithm):
             g.multiply(self.x + self.eps, out=self.x_update)
             self.x_update.divide(self.average_sensitivity, out=self.x_update)
 
-
+        if self.update_filter is not None:
+            self.update_filter.apply(self.x_update)
+            
         if self.iteration == 0:
             step_size = min(max(1/(self.x_update.norm() + 1e-3), 0.001), 3.0)
         else:
@@ -154,16 +156,14 @@ class BSREMSkeleton(Algorithm):
             delta_g = self.x_update_prev - self.x_update
 
             dot_product = delta_g.dot(delta_x) 
-            alpha_long = delta_x.norm()**2 / np.abs(dot_product)
-           
+            alpha_long = delta_x.norm()**2 / np.abs(dot_product) 
 
-            step_size = max(alpha_long, 0.001) 
+            step_size = max(alpha_long, 0.002) 
 
         self.x_prev = self.x.copy()
         self.x_update_prev = self.x_update.copy()
 
-        if self.update_filter is not None:
-            self.update_filter.apply(self.x_update)
+
         
         self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
 
