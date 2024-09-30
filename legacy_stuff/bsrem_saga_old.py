@@ -68,10 +68,7 @@ class BSREMSkeleton(Algorithm):
         self.x_prev = None 
         self.x_update_prev = None 
 
-        self.x_tilde = initial.copy()
-
         self.x_update = initial.get_uniform_copy(0)
-        self.z = initial.copy()
 
         self.gm = [self.x.get_uniform_copy(0) for _ in range(self.num_subsets)]
         
@@ -97,43 +94,94 @@ class BSREMSkeleton(Algorithm):
         return self.iteration // self.num_subsets
 
     def update(self):
-   
-        if self.iteration % self.num_subsets == 0 or self.iteration == 0:
-            self.sum_gm = self.x.get_uniform_copy(0)
-            for i in range(self.num_subsets):
-                gm = self.subset_gradient(self.x_tilde, self.subset_order[i]) 
-                self.gm[self.subset_order[i]] = gm
-                self.sum_gm.add(gm, out=self.sum_gm)
 
-            self.sum_gm /= self.num_subsets
+        # for the first epochs just do SGD
+        if self.epoch() < 1:
+            # construct gradient of subset 
+            subset_choice = self.subset_order[self.subset]
+            g = self.subset_gradient(self.x, subset_choice) 
+
+            g.multiply(self.x + self.eps, out=self.x_update)
+            self.x_update.divide(self.average_sensitivity, out=self.x_update)
+            
+            if self.update_filter is not None:
+                self.update_filter.apply(self.x_update)
+
+            # DOwG learning rate: DOG unleashed!
+            self.r = max((self.x - self.initial).norm(), self.r)
+            self.v += self.r**2 * self.x_update.norm()**2
+            step_size = 1.05*self.r**2 / np.sqrt(self.v)
+            step_size = max(step_size, 1e-4) # dont get too small
+
+            #print(self.alpha, self.sum_gradient)
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+            #self.x += self.alpha * self.x_update
+            self.x.maximum(0, out=self.x)
+
+        # do SAGA
+        else:
+            # do one step of full gradient descent to set up subset gradients
+            if (self.epoch() in [1,2,6,10,14]) and self.iteration % self.num_subsets == 0:
+                # construct gradient of subset 
+                #print("One full gradient step to intialise SAGA")
+                g = self.x.get_uniform_copy(0)
+                for i in range(self.num_subsets):
+                    gm = self.subset_gradient(self.x, self.subset_order[i]) 
+                    self.gm[self.subset_order[i]] = gm
+                    g.add(gm, out=g)
+                    #g += gm
+
+                g /= self.num_subsets
+                
+
+                g.multiply(self.x + self.eps, out=self.x_update)
+                self.x_update.divide(self.average_sensitivity, out=self.x_update)
+                
+                if self.update_filter is not None:
+                    self.update_filter.apply(self.x_update)
+
+                # DOwG learning rate: DOG unleashed!
+                self.r = max((self.x - self.initial).norm(), self.r)
+                self.v += self.r**2 * self.x_update.norm()**2
+                step_size = self.r**2 / np.sqrt(self.v)
+                step_size = max(step_size, 1e-4) # dont get too small
+
+                self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
+
+                # threshold to non-negative
+                self.x.maximum(0, out=self.x)
+
+                self.sum_gm = self.x.get_uniform_copy(0)
+                for gm in self.gm:
+                    self.sum_gm += gm 
+            
+
+            subset_choice = self.subset_order[self.subset]
+            g = self.subset_gradient(self.x, subset_choice) 
+
+            gradient = (g - self.gm[subset_choice]) + self.sum_gm / self.num_subsets
         
-        subset_choice = self.subset_order[self.subset]
-        g = self.subset_gradient(self.x, subset_choice) 
-
-        gradient = (g - self.gm[subset_choice]) + self.sum_gm
+            gradient.multiply(self.x + self.eps, out=self.x_update)
+            self.x_update.divide(self.average_sensitivity, out=self.x_update)
         
-        gradient.multiply(self.x + self.eps, out=self.x_update)
-        self.x_update.divide(self.average_sensitivity, out=self.x_update)
-        
-        if self.update_filter is not None:
-            self.update_filter.apply(self.x_update)
+            if self.update_filter is not None:
+                self.update_filter.apply(self.x_update)
 
-        # DOwG learning rate: DOG unleashed!
-        self.r = max((self.x - self.initial).norm(), self.r)
-        self.v += self.r**2 * self.x_update.norm()**2
-        step_size = self.r**2 / np.sqrt(self.v)
-        step_size = max(step_size, 1e-3) # dont get too small
-        self.z.sapyb(1.0, self.x_update, step_size, out=self.z)
+            # DOwG learning rate: DOG unleashed!
+            self.r = max((self.x - self.initial).norm(), self.r)
+            self.v += self.r**2 * self.x_update.norm()**2
+            step_size = self.r**2 / np.sqrt(self.v)
+            step_size = max(step_size, 1e-4) # dont get too small
 
-        # threshold to non-negative
-        self.z.maximum(0, out=self.z)
+            self.x.sapyb(1.0, self.x_update, step_size, out=self.x)
 
-        self.x_tilde.sapyb(0.5, self.z, 0.5, out=self.x)
+            # threshold to non-negative
+            self.x.maximum(0, out=self.x)
 
-        self.x_tilde = self.x.copy()
+        self.sum_gm = self.sum_gm - self.gm[subset_choice] + g
+        self.gm[subset_choice] = g
 
         self.subset = (self.subset + 1) % self.num_subsets
-        
         
     def update_objective(self):
         # required for current CIL (needs to set self.loss)

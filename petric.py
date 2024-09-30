@@ -39,7 +39,7 @@ from img_quality_cil_stir import ImageQualityCallback
 log = logging.getLogger('petric')
 TEAM = os.getenv("GITHUB_REPOSITORY", "SyneRBI/PETRIC-").split("/PETRIC-", 1)[-1]
 VERSION = os.getenv("GITHUB_REF_NAME", "")
-OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "Postprocessing_BSREM_FullGD_BB_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+OUTDIR = Path(f"/o/logs/{TEAM}/{VERSION}" if TEAM and VERSION else "./output/" + "EWS_AccSAGA_weakerMomentum_" + datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 if not (SRCDIR := Path("/mnt/share/petric")).is_dir():
     SRCDIR = Path("./data")
 
@@ -152,7 +152,7 @@ class QualityMetrics(ImageQualityCallback, Callback):
 
 class MetricsWithTimeout(cil_callbacks.Callback):
     """Stops the algorithm after `seconds`"""
-    def __init__(self, seconds=400, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, sagittal_slice=None,
+    def __init__(self, seconds=350, outdir=OUTDIR, transverse_slice=None, coronal_slice=None, sagittal_slice=None,
                  **kwargs):
         super().__init__(**kwargs)
         self._seconds = seconds

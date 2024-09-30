@@ -12,8 +12,12 @@ Giving reconstruction algorithms a warm start can speed up reconstruction time b
 
 We employ three different iterative algortihms.
 
-### 1) EM-preconditioner, DOwG step size rule, SAGA gradient estimation (in branch: main)
-**Update rule**: SGD-like for the first epochs, then SAGA-like afterwards with full-gradients computed as 2nd, 6th, 10th and 14th epochs. Here, we do not use random subsets, but rather accessing the subsets according to a Herman Meyer order. 
+### 1) EM-preconditioner, DOwG step size rule, SAGA gradient estimation with Katyusha momentum (in branch: main)
+**Update rule**: We use ideas from the [Katyusha paper](https://arxiv.org/abs/1603.05953) to accelerate SAGA.  In particular we choose $\theta_1 = \theta_2 = 0.5$, such that the update rules becomes 
+
+$$ x_{k+1} = 0.5  z_k + 0.5  \tilde{x} \\ \tilde{\nabla} = \nabla f(\tilde{x}) + \nabla f_i(x_{k+1}) - \nabla f_i(\tilde{x}) \\ z_{k+1} = z_k - \alpha  \tilde{\nabla}$$
+
+We access subsets according to a Herman Meyer order. We choose $\tilde{x}$ as the last precition of the previous epoch. 
 
 **Step-size rule**: All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
 
