@@ -96,7 +96,7 @@ class BSREMSkeleton(Algorithm):
     def update(self):
 
         # for the first epochs just do SGD
-        if self.epoch() < 2:
+        if self.epoch() < 1:
             # construct gradient of subset 
             subset_choice = self.subset_order[self.subset]
             g = self.subset_gradient(self.x, subset_choice) 
@@ -107,7 +107,7 @@ class BSREMSkeleton(Algorithm):
             # DOwG learning rate: DOG unleashed!
             self.r = max((self.x - self.initial).norm(), self.r)
             self.v += self.r**2 * self.x_update.norm()**2
-            step_size = self.r**2 / np.sqrt(self.v)
+            step_size = 1.2*self.r**2 / np.sqrt(self.v)
             step_size = max(step_size, 1e-4) # dont get too small
             
             if self.update_filter is not None:
@@ -121,7 +121,7 @@ class BSREMSkeleton(Algorithm):
         # do SAGA
         else:
             # do one step of full gradient descent to set up subset gradients
-            if (self.epoch() in [2,6,10,14]) and self.iteration % self.num_subsets == 0:
+            if (self.epoch() in [1,2,6,10,14]) and self.iteration % self.num_subsets == 0:
                 # construct gradient of subset 
                 #print("One full gradient step to intialise SAGA")
                 g = self.x.get_uniform_copy(0)
