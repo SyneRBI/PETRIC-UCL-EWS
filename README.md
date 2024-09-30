@@ -8,24 +8,31 @@
 
 
 ## Reconstruction Methods - Educated Warm Start
-To reduce the time required to reach the minimiser, we want to start closer to the minimiser. A better initialisation could reduce the number of steps an iterative algorithm needs and thus reduce the time. To this end, we employ a neural network, to learn a suitable initial image. The network is a (small) 3D convolutional neural network. All layers in the network have no bias and we ReLU activation functions. This results in a 1-homogeneous network. In this way, the network should be independent of the intensity of the image. It takes as input only the OSEM image, provided by the organisers. The network weights are available in the folder *checkpoint/*.
+Giving reconstruction algorithms a warm start can speed up reconstruction time by starting closer to the minimiser. To this end, we employ a neural network to learn a suitable warm start image. The network is a (small) 3D convolutional neural network. All layers in the network have no bias and we ReLU activation functions. This results in a 1-homogeneous network. In this way, the network should be independent of the intensity of the image. Although many different architectures and inputs were tested, the final network only takes the provided OSEM image as input. The network weights are available in the folder *checkpoint/*.
 
-We employ three different classical iterative algortihms.
+We employ three different iterative algortihms.
 
-### 1) BSREM preconditioner, DOwG step size rule, SAGA gradient estimation (in branch: main)
-We employ the traditional BSREM algorithm. The number of subsets is automatically calculated using some heuristics (see below). We use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. We use SAGA to get an estimate of the full gradient.
+### 1) EM-preconditioner, DOwG step size rule, SAGA gradient estimation (in branch: main)
+*Update rule* - SGD-like for first two epochs, then SAGA-like afterwards with full-gradients computed as 2nd, 6th, 10th and 14th epochs. 
+*Step-size rule* - All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
+*Preconditioner* EM-preconditioner the same as used in the BSREM example.
 
+### 2) EM-preconditioner, DOwG step size rule, SGD (in branch: ews_sgd)
+*Update rule* - SGD-like for all iterations, after 10 iterations 4 subset gradients are accumulated per iteration.
+*Step-size rule* - All iterations use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation. 
+*Preconditioner* EM-preconditioner the same as used in the BSREM example.
 
-### 2) BSREM preconditioner, DOwG step size rule, SGD (in branch: ews_sgd)
-We employ the traditional BSREM algorithm. The number of subsets is automatically calculated using some heuristics (see below). We use [DoWG](https://arxiv.org/abs/2305.16284) (Distance over Weighted Gradients) for the step size calculation.
+### 3) Adaptive preconditioner, full gradient descent, Barzilai-Borwein step size rule (in branch: full_gd)
 
-### 3) adaptive preconditioner, full gradient descent, Barzilai-Borwein step size rule (in branch: full_gd)
-The characteristics of the datasets varied a lot, i.e., we had low count data, different scanner setups, TOF data, and so on. We tried a lot of different algorithms and approaches, both classical and deep learning based, but it was hard to design a method, which works consistently for all these different settings. Based on this experience, we submit a full gradient descent algorithm with a Barzilai-Borwein step size rule. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. However, most work look at a speed up with respect to number of iterations. For the challenge, we are interested in raw computation time. With respect to raw computation time, we sometimes saw only a minor different between full gradient descent and gradient descent using subsets.  
+The characteristics of the datasets varied a lot, i.e., we had low count data, different scanner setups, TOF data, and so on. We tried a lot of different algorithms and approaches, both classical and deep learning based, but it was hard to design a method, which works consistently for all these different settings. Based on this experience, we submit a full gradient descent algorithm with a Barzilai-Borwein step size rule. Using the full gradient goes against almost all empirical results, which show that the convergence can be speed by using subsets. However, most work look at a speed up with respect to number of iterations and do not take into account parameter tuning specific to each algorithm. With respect to raw computation time, we sometimes saw only a minor different between full gradient descent and gradient descent using subsets. Further, often a subset-based algorithm that worked well for one dataset performed extremely poorly on another requiring adjustment of the hyper-parameters.
 
-At the start of the optimisation we compare the norm of the gradient of the RDP prior with the norm of the gradient of the full objective function. If this fraction is less than 0.5, we simply use the BSREM type preconditioner. If this fraction is larger than 0.5, we use a similar preconditioner to [Tsai et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/29610077/). However, we do not update the Hessian row sum of the likelihood term. Further, we found that the Hessian row sum of the RDP prior was instable, so instead we only used the diagonal elements of the Hessian evaluated at the current iterate. This defines a kind of strange preconditioner, where only the RDP part in the preconditioner is updated.
+For the precondtioner, the ratio between the norm of RDP gradient vs. the norm of the full objective gradient is used to gauge the dominance of the RDP component of the objective function. If this fraction is larger than 0.5 (i.e. RDP is dominating) a preconditioner utilising an approximation of the Hessian of RDP is used. The preconditioner used is similar to [Tsai et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/29610077/), however, the Hessian row sum of the likelihood term is not updated each iteration. Additionally, we found that the Hessian row sum of the RDP prior was instable, so instead we only used the diagonal approximation of the Hessian evaluated at each iterate. This defines a kind of strange preconditioner, where only the RDP component of the preconditioner is updated per iteration. For the case when the fraction was lower than 0.5, the EM-preconditioner was used. This was observed to provided better performance when the likelihood component is more dominant, also this avoid the costly computation of the diagonal of the RDP Hessian.
 
+*Update rule* - GD for all iterations.
+*Step-size rule* - Barzilai-Borwein long step size rule. 
+*Preconditioner* Diagonal RDP Hessian + Row-sum of likelihood hessian, or EM-precondition based on a dominance of RDP component of the objective function.
 
-### Subset Choice 
+### Number of subset choice 
 To compute the number of subsets we use the functions in **utils/number_of_subsets.py**. This is a set of heuristic rules: 1) number of subsets has to be divisible by the number of views, 2) the number of subsets should have many prime factors (this results in a good herman meyer order), 3) I want at least 8 views in each subset and 4) I want at least 5 subsets. The function in **utils/number_of_subsets.py** is probably not really efficient. 
 
 For TOF flight data, we do not use rule 3) and 4). If several number of subsets have the same number of prime factors, we take the larger number of subsets. 
@@ -34,17 +41,6 @@ All in all, this results in: 50 views (TOF) -> 25 subsets, 128 views -> 16 subse
 
 
 ## Challenge information
-
-### Creating tags note:
-
-Make sure on the right branch
-
-
-```
-git tag -a <tagname> -m '<message>'
-git push origin --tags
-```
-
 
 ### Layout
 
